@@ -1,4 +1,4 @@
-﻿// Copyright 2020 The Tilt Brush Authors
+// Copyright 2020 The Tilt Brush Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,13 +20,22 @@ namespace TiltBrush
     public class CameraPathPreviewWidget : GrabWidget
     {
         [SerializeField] private Color m_RecordColor;
+        [SerializeField] private Color m_SecondPassColor = Color.green;
+        // Update 2056 CameraPathPreviewWidget  Add Video Generation Color field
+        [SerializeField] private Color m_VideoGenerationColor = Color.blue;
+
 
         private CameraPathWidget m_CurrentPathWidget;
         private Vector3? m_LastRecordedInputXf;
         private PathT m_PathT;
+        private PathT m_PreviewStartPathT;
 
         // If not null, the widget will use this PathT instead of m_PathT.
         private PathT? m_OverridePathT;
+
+        // Update 1004 CameraPathPreviewWidget  addtioanl timing tracking data
+        private float m_PreviewStartTime;
+        private bool m_PreviewStarted;
 
         public PathT? OverridePathT { set { m_OverridePathT = value; } }
 
@@ -48,6 +57,16 @@ namespace TiltBrush
             }
         }
 
+
+        // Update 2001 CameraPathPreviewWidget - Add second pass visual indicator support
+        // Purpose: Allow the widget to show a distinct color (e.g. green or blue) during the second pass
+        // of a two-pass recording session. This provides clear visual feedback to the user that they are
+        // in the final recording pass. The method follows the same pattern as TintForRecording().
+        //
+        // Phase 2 pad behavior:
+        // - Pass 1: geometric complete → StopRecordingPath (unchanged via IsRecordingActive).
+        // - Pass 2: geometric complete → NotifySecondPassPathContentComplete only; do not stop.
+        // - Once in pad region: skip MoveAlongPath and hold last PathT until frame budget ends.
         override protected void OnUpdate()
         {
             base.OnUpdate();
@@ -57,28 +76,122 @@ namespace TiltBrush
 
             if (m_CurrentPathWidget != null && m_CurrentPathWidget.Path.NumPositionKnots > 1)
             {
+                bool isRecording = VideoRecorderUtils.ActiveVideoRecording != null ||
+                                   VideoRecorderUtils.ActiveStillFrameExporter != null;
+
                 if (m_OverridePathT == null && !m_UserInteracting &&
                     WidgetManager.m_Instance.FollowingPath)
                 {
-                    bool completed = m_CurrentPathWidget.Path.MoveAlongPathByTime(
-                        Time.deltaTime, m_PathT, out m_PathT);
+                    var rig = SketchControlsScript.m_Instance != null
+                        ? SketchControlsScript.m_Instance.CameraPathCaptureRig
+                        : null;
 
-                    if ((VideoRecorderUtils.ActiveVideoRecording != null || VideoRecorderUtils.ActiveStillFrameExporter != null) && completed)
+                    bool inPadRegion = rig != null && rig.IsSecondPassInPadRegion;
+
+                    if (!inPadRegion)
                     {
-                        SketchControlsScript.m_Instance.CameraPathCaptureRig.StopRecordingPath(true);
+                        bool completed = m_CurrentPathWidget.Path.MoveAlongPathByTime(
+                            Time.deltaTime, m_PathT, out m_PathT);
+
+                        // Preview-only duration capture (not recording)
+                        if (!isRecording)
+                        {
+                            if (!m_PreviewStarted)
+                            {
+                                m_PreviewStartTime = Time.time;
+                                m_PreviewStartPathT = m_PathT;
+                                m_PreviewStarted = true;
+                            }
+
+                            if (completed && m_PreviewStarted)
+                            {
+                                if (m_PreviewStartPathT.T < 0.15f && m_CurrentPathWidget.Path.LastPreviewDuration == null)
+                                {
+                                    float actualDuration = Time.time - m_PreviewStartTime;
+                                    m_CurrentPathWidget.Path.LastPreviewDuration = actualDuration;
+                                }
+                                m_PreviewStarted = false;
+                            }
+                        }
+
+                        // ====================================================================
+                        // PHASE-LOCKED TWO-PASS COMPLETION BRANCHING
+                        // ====================================================================
+                        // Pass 1 (IsRecordingActive): geometric complete stops the pass.
+                        // Pass 2 (UseFrameLimit, not IsRecordingActive): enter pad region only;
+                        // frame budget in SerializerNewUsdFrame still owns the real stop.
+                        if (isRecording && completed)
+                        {
+                            if (rig != null && rig.UseFrameLimit)
+                            {
+                                if (rig.IsRecordingActive)
+                                {
+                                    rig.StopRecordingPath(true);
+                                }
+                                else
+                                {
+                                    rig.NotifySecondPassPathContentComplete();
+                                }
+                            }
+                            else if (rig != null)
+                            {
+                                // No frame-limit / legacy: stop on geometric complete
+                                rig.StopRecordingPath(true);
+                            }
+                        }
                     }
+                    // else: Pass 2 pad region — hold last m_PathT; do not advance path
+                }
+                else
+                {
+                    m_PreviewStarted = false;
+                    m_PreviewStartPathT = new PathT(0);
                 }
 
-                // Stay locked on the path.
+                // Always snap transform / camera to current PathT (moving or held)
                 PathT t = m_OverridePathT != null ? m_OverridePathT.Value : m_PathT;
                 transform.position = m_CurrentPathWidget.Path.GetPosition(t);
+
                 if (m_CurrentPathWidget.Path.RotationKnots.Count > 0)
                 {
                     transform.rotation = m_CurrentPathWidget.Path.GetRotation(t);
                 }
+
                 float fov = m_CurrentPathWidget.Path.GetFov(t);
                 SketchControlsScript.m_Instance.CameraPathCaptureRig.SetFov(fov);
                 SketchControlsScript.m_Instance.CameraPathCaptureRig.UpdateCameraTransform(transform);
+            }
+        }
+
+
+        public void TintForSecondPass(bool active)
+        {
+            if (m_TintableMeshes == null) return;
+
+            Color color = active ? m_SecondPassColor : m_InactiveGrey;
+
+            for (int i = 0; i < m_TintableMeshes.Length; ++i)
+            {
+                if (m_TintableMeshes[i] != null && m_TintableMeshes[i].material != null)
+                {
+                    m_TintableMeshes[i].material.color = color;
+                }
+            }
+        }
+
+        // Update 2056 CameraPathPreviewWidget - Add TintForVideoGeneration method
+        public void TintForVideoGeneration(bool active)
+        {
+            if (m_TintableMeshes == null) return;
+
+            Color color = active ? m_VideoGenerationColor : m_InactiveGrey;
+
+            for (int i = 0; i < m_TintableMeshes.Length; ++i)
+            {
+                if (m_TintableMeshes[i] != null && m_TintableMeshes[i].material != null)
+                {
+                    m_TintableMeshes[i].material.color = color;
+                }
             }
         }
 
@@ -218,3 +331,11 @@ namespace TiltBrush
     }
 
 } // namespace TiltBrush
+
+
+// Update 1004  CameraPathPreviewWidget.OnUpdate
+// stores only if a complete loop, checks starting position.
+
+
+// Update 1004  CameraPathPreviewWidget.OnUpdate
+// Note: The duration capture here is simplified for now. A more accurate version would track start time when preview begins. We can improve this in a follow-up if needed.

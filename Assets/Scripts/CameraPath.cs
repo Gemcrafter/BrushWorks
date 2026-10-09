@@ -1,4 +1,4 @@
-﻿// Copyright 2020 The Tilt Brush Authors
+// Copyright 2020 The Tilt Brush Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -161,6 +161,15 @@ namespace TiltBrush
         // List of fov points sorted relative to the m_PositionKnots.
         public List<CameraPathFovKnot> FovKnots;
         public List<KnotSegment> Segments;
+
+        // Update 1007 CameraPath
+        // Purpose: Temporary global speed multiplier used only during recording.
+        // This allows slowing down the entire path for recording without permanently
+        // modifying the artist's speed knots.
+        public float TemporarySpeedMultiplier { get; set; } = 1.0f;
+
+        // Update 1004 - Stores the actual duration from the last full preview run (if available)
+        public float? LastPreviewDuration { get; internal set; }
 
         private Transform m_Widget;
         private float m_SegmentRadius;
@@ -357,6 +366,11 @@ namespace TiltBrush
             SpeedKnots.Insert(insertIndex, knot);
             m_LastPlacedKnotInfo.Set(knot,
                 (int)CameraPathSpeedKnot.ControlType.SpeedControl, null, pathT);
+
+            // Update 1005 CameraPath.AddSpeedKnot
+            // Purpose: Invalidate cached preview duration when a speed knot is added.
+            // Speed changes directly affect path duration, so old preview data must be cleared.
+            InvalidatePreviewDuration();
         }
 
         /// The CameraPath class will not clean up this knot gameObject.  It is the duty of the caller
@@ -464,6 +478,12 @@ namespace TiltBrush
             PositionKnots.Insert(index, knot);
             ValidatePathLooping();
             RefreshPathAfterPositionKnotAdded(index);
+
+            // Update 1005 CameraPath.InsertPositionKnot
+            // Purpose: Invalidate cached preview duration when a new position knot is inserted.
+            // This prevents stale preview timing data from being used after the path structure changes.
+            InvalidatePreviewDuration();
+
             AudioManager.m_Instance.ShowHideWidget(true, knot.transform.position);
 
             // The ControlType of m_LastPlacedKnotInfo is dependent on our index.  When we add to the
@@ -527,13 +547,19 @@ namespace TiltBrush
                 newSegmentLengths[i] = Segments[i].length;
             }
 
-            // Modify PathT for all rotation knots on or beyond the new segment.
-            for (int i = 0; i < RotationKnots.Count; ++i)
+            // Modify PathT for all fov knots on or beyond the new segment.
+            for (int i = 0; i < FovKnots.Count; ++i)
             {
                 RecomputeKnotPlacementAfterPositionAdded(
-                    RotationKnots[i], insertIndex, prevSegmentLengths, newSegmentLengths);
-                RefreshRotationKnot(i);
+                    FovKnots[i], insertIndex, prevSegmentLengths, newSegmentLengths);
+                RefreshFovKnot(i);
             }
+
+            // Update 1005 CameraPath.RefreshPathAfterPositionKnotAdded
+            // Purpose: Invalidate cached preview duration after position knots are added
+            // and the path is refreshed. This prevents stale preview data after structural changes.
+            InvalidatePreviewDuration();
+
 
             // Modify PathT for all speed knots on or beyond the new segment.
             for (int i = 0; i < SpeedKnots.Count; ++i)
@@ -625,6 +651,12 @@ namespace TiltBrush
                 PositionKnots.RemoveAt(positionIndex);
                 ValidatePathLooping();
                 RefreshPathAfterPositionRemoval(positionIndex);
+
+                // Update 1005 CameraPath.RemoveKnot
+                // Purpose: Invalidate cached preview duration when a position knot is removed.
+                // This ensures we do not reuse old preview timing after the path structure has changed.
+                InvalidatePreviewDuration();
+
                 AudioManager.m_Instance.ShowHideWidget(false, knot.transform.position);
                 return;
             }
@@ -724,8 +756,12 @@ namespace TiltBrush
                     FovKnots[i], removalIndex, prevSegmentLengths, newSegmentLengths);
                 RefreshFovKnot(i);
             }
-        }
 
+            // Update 1005 CameraPath.RefreshPathAfterPositionRemoval
+            // Purpose: Invalidate cached preview duration after position knots are removed
+            // and the path is refreshed. This prevents stale preview data after structural changes.
+            InvalidatePreviewDuration();
+        }
         public IEnumerator DelayRefresh()
         {
             yield return null;
@@ -1545,17 +1581,19 @@ namespace TiltBrush
             return qRot.normalized;
         }
 
+
+        //  Corrected to apply global speed (for our frame by frame speed controls, especially when only one knowt in path
         public float GetSpeed(PathT pathT)
         {
             int numSpeedKnots = SpeedKnots.Count;
 
             if (numSpeedKnots == 0)
             {
-                return m_DefaultSpeed;
+                return m_DefaultSpeed * TemporarySpeedMultiplier;   // Update 1011
             }
             if (numSpeedKnots == 1)
             {
-                return SpeedKnots[0].CameraSpeed;
+                return SpeedKnots[0].CameraSpeed * TemporarySpeedMultiplier;   // Update 1011 - This was missing
             }
 
             pathT.Clamp(PositionKnots.Count);
@@ -1564,6 +1602,7 @@ namespace TiltBrush
             float? v2 = null;
             float v0 = 0.0f, v1 = 0.0f, v3 = 0.0f;
             PathT t1 = new PathT(), t2 = new PathT();
+
             for (int i = 0; i < numSpeedKnots; ++i)
             {
                 CameraPathSpeedKnot thisKnot = SpeedKnots[i];
@@ -1600,19 +1639,22 @@ namespace TiltBrush
             }
 
             float t1t2Distance = GetUnsignedDistanceFromTtoT(t1, t2);
-            // Knots are on top of eachother, just return the value of the knot in front of us.
+
             if (t1t2Distance == 0.0f)
             {
-                return v2.Value;
+                return v2.Value * TemporarySpeedMultiplier;   // Update 1011
             }
-            float t1pathTDistance = GetUnsignedDistanceFromTtoT(t1, pathT);
 
+            float t1pathTDistance = GetUnsignedDistanceFromTtoT(t1, pathT);
             float speed_t = t1pathTDistance / t1t2Distance;
             float k1Tangent = 0.5f * (v2.Value - v0);
             float k2Tangent = 0.5f * (v3 - v1);
 
-            return CalculateHermite(speed_t, v1, k1Tangent, v2.Value, k2Tangent);
+            float baseSpeed = CalculateHermite(speed_t, v1, k1Tangent, v2.Value, k2Tangent);
+
+            return baseSpeed * TemporarySpeedMultiplier;
         }
+
 
         public float GetFov(PathT pathT)
         {
@@ -1788,6 +1830,61 @@ namespace TiltBrush
             endT = new PathT(walkingKnot + walkingT);
             return rolled;
         }
+
+        // Update 1004 CameraPath.EstimateTotalDuration
+        // Purpose: Estimates the real-world time it would take to traverse the entire path
+        // using the current speed knot values. Always calculated when ScaleSpeedToFrameCount is enabled
+        // so we have calibration data even when a preview was run.
+        public float EstimateTotalDuration()
+        {
+            if (PositionKnots.Count < 2 || Segments == null || Segments.Count == 0)
+            {
+                return 0f;
+            }
+
+            float totalTime = 0f;
+            float stepSize = 0.05f; // Good balance between accuracy and performance
+
+            for (float t = 0; t < PositionKnots.Count - 1; t += stepSize)
+            {
+                PathT currentT = new PathT(t);
+                PathT nextT = new PathT(Mathf.Min(t + stepSize, PositionKnots.Count - 1));
+
+                float distance = GetUnsignedDistanceFromTtoT(currentT, nextT);
+                float speed = GetSpeed(currentT);
+
+                if (speed > 0.001f)
+                {
+                    totalTime += distance / speed;
+                }
+            }
+
+            return totalTime;
+        }
+
+
+        // Update 1004 CameraPath.ScaleSpeedsByFactor
+        // Purpose: Applies a single global multiplier to every speed knot on the path.
+        // This is used to proportionally slow down (or speed up) the entire path so it
+        // matches the requested target duration when ScaleSpeedToFrameCount is enabled.
+        public void ScaleSpeedsByFactor(float factor)
+        {
+            if (factor <= 0f) return;
+
+            for (int i = 0; i < SpeedKnots.Count; i++)
+            {
+                SpeedKnots[i].SpeedValue *= factor;
+            }
+        }
+
+        // Update 1005 CameraPath.InvalidatePreviewDuration
+        // Purpose: Clears the cached LastPreviewDuration so that stale preview timing
+        // is not used after the path has been structurally modified (knots added/removed).
+        public void InvalidatePreviewDuration()
+        {
+            LastPreviewDuration = null;
+        }
+
 
         public CameraPathMetadata SerializeToCameraPathMetadata()
         {

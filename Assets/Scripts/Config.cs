@@ -537,9 +537,9 @@ namespace TiltBrush
 
             if (isInBatchMode)
             {
-                if (OfflineRender || m_SdkMode == SdkMode.Ods)
+                if (m_SdkMode == SdkMode.Ods)
                 {
-                    throw new ApplicationException("Video rendering not supported in batch mode.");
+                    throw new ApplicationException("ODS rendering not supported in batch mode.");
                 }
                 m_SdkMode = SdkMode.Monoscopic;
             }

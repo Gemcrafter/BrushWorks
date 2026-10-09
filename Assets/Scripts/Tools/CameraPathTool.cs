@@ -1,10 +1,10 @@
-﻿// Copyright 2020 The Tilt Brush Authors
+// Copyright 2020 The Tilt Brush Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//      http://www.apache.org/licenses/LICENSE-2.0
+// http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,7 +17,6 @@ using UnityEngine;
 
 namespace TiltBrush
 {
-
     public class CameraPathTool : BaseTool
     {
         public enum Mode
@@ -28,7 +27,8 @@ namespace TiltBrush
             AddFovKnot,
             RemoveKnot,
             Recording,
-            DrawPath
+            DrawPath,
+            Idle // inert: no place/delete on trigger
         }
 
         public enum ExtendPathType
@@ -38,6 +38,7 @@ namespace TiltBrush
             ExtendAtTail,
             Loop,
         }
+
         [SerializeField] private GameObject m_PositionKnot;
         [SerializeField] private GameObject m_RotationKnot;
         [SerializeField] private GameObject m_SpeedKnot;
@@ -48,14 +49,11 @@ namespace TiltBrush
         private CameraPathWidget m_PrevLastValidPath;
         private CameraPathWidget m_LastValidPath;
         private Vector3 m_LastValidPosition;
-
         private CameraPathWidget m_ExtendPath;
         private ExtendPathType m_ExtendPathType;
-
         private KnotDescriptor m_LastPlacedKnot;
         private CameraPathWidget m_LastPlacedKnotPath;
         private TrTransform m_LastPlacedKnotXf_LS;
-
         private KnotSegment m_PreviewSegment;
 
         // DrawPath mode state.
@@ -75,7 +73,7 @@ namespace TiltBrush
             App.Switchboard.CameraPathModeChanged += OnCameraPathModeChanged;
             m_PreviewSegment = CameraPath.CreateSegment(null);
             m_PreviewSegment.renderer.material.color = Color.white;
-            m_Mode = Mode.AddPositionKnot;
+            m_Mode = Mode.Idle;
             RefreshMeshVisibility();
         }
 
@@ -137,6 +135,7 @@ namespace TiltBrush
                 return;
             }
 
+            if (CurrentMode == Mode.Idle) return;
             // Path drawing has its own input handling; it doesn't interact with
             // existing paths or knots.
             if (CurrentMode == Mode.DrawPath)
@@ -147,7 +146,6 @@ namespace TiltBrush
 
             var widgets = WidgetManager.m_Instance.CameraPathWidgets;
             Transform toolAttachXf = InputManager.Brush.Geometry.ToolAttachPoint;
-
             bool input = InputManager.m_Instance.GetCommand(InputManager.SketchCommands.Activate);
             bool inputDown = InputManager.m_Instance.GetCommandDown(InputManager.SketchCommands.Activate);
 
@@ -171,9 +169,9 @@ namespace TiltBrush
             // Initiating input.
             if (inputDown)
             {
-                // We clicked, but the path we clicked on isn't the active path.  In that case,
+                // We clicked, but the path we clicked on isn't the active path. In that case,
                 // switch it to the active path and eat up this input.
-                // Don't do this for removing knots.  That input should be explicit.
+                // Don't do this for removing knots. That input should be explicit.
                 if (m_Mode != Mode.RemoveKnot && m_LastValidPath != null)
                 {
                     GrabWidgetData data = WidgetManager.m_Instance.GetCurrentCameraPath();
@@ -272,10 +270,8 @@ namespace TiltBrush
                 {
                     // Holding input from last frame can allow us to manipulate a just placed position knot.
                     WidgetManager.m_Instance.PathTinter.TintKnot(m_LastPlacedKnot.knot);
-
                     TrTransform controllerXf = Coords.AsGlobal[InputManager.Brush.Transform];
                     TrTransform inputXf = controllerXf * m_LastPlacedKnotXf_LS;
-
                     switch (m_LastPlacedKnot.knot.KnotType)
                     {
                         case CameraPathKnot.Type.Position:
@@ -290,7 +286,6 @@ namespace TiltBrush
                                 {
                                     knotFwd *= -1.0f;
                                 }
-
                                 SketchMemoryScript.m_Instance.PerformAndRecordCommand(
                                     new ModifyPositionKnotCommand(
                                         m_LastPlacedKnotPath.Path, m_LastPlacedKnot, tangentMag, knotFwd,
@@ -325,11 +320,10 @@ namespace TiltBrush
             }
             else
             {
-                // No input to work with.  Forget we had anything and make sure our meshes are showing.
+                // No input to work with. Forget we had anything and make sure our meshes are showing.
                 if (m_LastPlacedKnot != null)
                 {
                     RefreshMeshVisibility();
-
                     // Rotation knots hide when we grab them, make sure it's enabled.
                     if (m_LastPlacedKnot.knot.KnotType == CameraPathKnot.Type.Rotation)
                     {
@@ -486,7 +480,7 @@ namespace TiltBrush
                     if (!widget.gameObject.activeInHierarchy) continue;
                     Debug.AssertFormat(widget != null, "Non-CameraPathWidget in CameraPathWidget list");
 
-                    // Check our tool attach point against the path.  If there is a collision, we're going
+                    // Check our tool attach point against the path. If there is a collision, we're going
                     // to jump the position of our mesh to the point on the path.
                     Vector3? projected = widget.Path.ProjectPositionOntoPath(xf.position);
                     if (projected != null)
@@ -497,17 +491,16 @@ namespace TiltBrush
                             bestDistance = distToProjected;
                             m_LastValidPosition = projected.Value;
                             m_LastValidPath = widget;
-
                             // We reset this here and not above (with m_LastValidPath) because we want the value
-                            // to retain as the user moves around beyond the end.  It's only when hiding and
+                            // to retain as the user moves around beyond the end. It's only when hiding and
                             // interacting with a path do we want it to reset.
                             m_ExtendPath = null;
                         }
                     }
 
                     // In addition to checking collision with the path, check collision with the end points
-                    // of the paths.  If the user comes near an end point, but is *not* colliding with the
-                    // path, they should be able to extend the length of the path.  That is, add a new knot
+                    // of the paths. If the user comes near an end point, but is *not* colliding with the
+                    // path, they should be able to extend the length of the path. That is, add a new knot
                     // off the respective end.
                     bool currentWidget = (currentData == null) ? false : currentData.m_WidgetScript == widget;
                     if (currentWidget && m_Mode == Mode.AddPositionKnot)
@@ -640,6 +633,9 @@ namespace TiltBrush
                     break;
                 case Mode.RemoveKnot:
                     m_RemoveKnot.SetActive(true);
+                    break;
+                case Mode.Idle:
+                case Mode.Recording:
                     break;
                 case Mode.DrawPath:
                     m_PositionKnot.SetActive(true);

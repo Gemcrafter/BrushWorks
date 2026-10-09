@@ -5715,6 +5715,23 @@ MonoBehaviour:
   references:
     version: 2
     RefIds: []
+  targetDurationSeconds: 0
+  useFrameLimit: 0
+  m_OfflinePathMapping: 1
+  secondPassTraversalPercent: 100
+  m_WritePaddingAsPureBlack: 1
+  videoQualityCRF: 14
+  videoQualityPreset: veryslow
+  liveCaptureFPS: 30
+  liveOutputFramerate: 30
+  offlineCaptureFPS: 60
+  offlineOutputFPS: 60
+  captureWidthOverride: 2560
+  captureHeightOverride: 1440
+  m_OfflineMuxCompanionWav: 1
+  offlineFfmpegEncodePath: 1
+  offlineVideoQualityCRF: 22
+  offlineVideoQualityPreset: veryslow
 --- !u!1 &283890785
 GameObject:
   m_ObjectHideFlags: 0
@@ -19605,6 +19622,29 @@ MonoBehaviour:
   m_SystemAudioInjectorAlt: {fileID: 681012521}
   m_SystemAudioInjectorLowPass: {fileID: 1101305687}
   m_SystemAudioInjectorHighPass: {fileID: 1801237614}
+  m_ReactivityStrength: 3.4
+  m_MaxReactivityStrength: 8
+  m_BeatSharpness: 2.6
+  m_AmplitudeModAmount: 0.55
+  m_FftReactivityMultiplier: 4.2
+  m_BeatAccumScale: 0.18
+  m_VolumeMultiplier: 3.5
+  m_BandLowMultiplier: 1
+  m_BandLowMidMultiplier: 0.92
+  m_BandMidMultiplier: 0.5
+  m_BandHighMidMultiplier: 0.28
+  m_BeatPulseWidth: 1.7
+  m_AccumLerpSpeed: 0.08
+  m_FftChannelR_Strength: 1.1
+  m_FftChannelG_Strength: 0.95
+  m_FftChannelB_Strength: 2.5
+  m_FftChannelA_Strength: 1
+  m_FftBlueChannelSpikeSharpness: 9.2
+  m_FftBlueChannelFrequency: 4.5
+  m_WaveformChannelR_Strength: 1.1
+  m_WaveformChannelG_Strength: 0.9
+  m_WaveformChannelB_Strength: 1.15
+  m_WaveformChannelA_Strength: 0.6
 --- !u!114 &1373217986
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -19620,6 +19660,15 @@ MonoBehaviour:
   m_SystemAudio: {fileID: 1115040664}
   m_FileAudio: {fileID: 1299255304}
   m_AppAudio: {fileID: 111450610}
+  m_EnableHighFidelityCapture: 1
+  m_SaveAudioTrackFile: 1
+  m_AudioCaptureSampleRate: 48000
+  m_FFmpegAudioBitratePreset: 320k
+  m_AllowAudioDuringPadding: 0
+  m_OfflineAudioMode: 2
+  m_OnlineAudioMode: 0
+  m_ReactivityStrength: 5
+  m_SimulatedBPM: 82
 --- !u!4 &1373217987
 Transform:
   m_ObjectHideFlags: 0

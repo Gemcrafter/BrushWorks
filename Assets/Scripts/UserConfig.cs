@@ -644,6 +644,21 @@ namespace TiltBrush
                 }
             }
 
+            // Update 1004 - New config for global speed scaling to achieve precise frame counts
+            bool? m_ScaleSpeedToFrameCount;
+            public bool ScaleSpeedToFrameCount
+            {
+                get { return m_ScaleSpeedToFrameCount ?? false; }
+                set { m_ScaleSpeedToFrameCount = value; }
+            }
+
+            float? m_SpeedScaleSafetyMargin;
+            public float SpeedScaleSafetyMargin
+            {
+                get { return m_SpeedScaleSafetyMargin ?? 0.95f; }
+                set { m_SpeedScaleSafetyMargin = Mathf.Clamp(value, 0.90f, 0.99f); }
+            }
+
             int? m_Resolution;
             public int Resolution
             {

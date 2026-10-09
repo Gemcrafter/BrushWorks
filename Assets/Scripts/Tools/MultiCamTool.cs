@@ -1,4 +1,4 @@
-﻿// Copyright 2020 The Tilt Brush Authors
+// Copyright 2020 The Tilt Brush Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -1713,16 +1713,45 @@ namespace TiltBrush
 
         void StopVideoCapture(bool showInfoCard)
         {
-            if (!VideoRecorderUtils.IsCapturing)
+            // Support both classic VideoRecorder and still-frame fallback.
+            // Previously this early-returned when ActiveVideoRecording was null, which left
+            // m_ActiveStillFrameExporter set after a still-frame session and caused the next
+            // StartVideoCapture to fail silently (no record icon / no capture).
+            VideoRecorder classicRecorder = VideoRecorderUtils.ActiveVideoRecording;
+            StillFrameSequenceExporter stillExporter = VideoRecorderUtils.ActiveStillFrameExporter;
+            bool usingStillFrame = VideoRecorderUtils.IsUsingStillFrameFallback && stillExporter != null;
+
+            if (classicRecorder == null && !usingStillFrame)
             {
+                Debug.LogError(
+                    "[MultiCamTool.StopVideoCapture] No active classic or still-frame capture to stop.");
                 return;
             }
 
-            float fps = Mathf.Max(VideoRecorderUtils.ActiveCaptureFPS, 1.0f);
-            float currentVideoLength = VideoRecorderUtils.ActiveCaptureFrameCount / fps;
+            float currentVideoLength = 0f;
+            if (usingStillFrame)
+            {
+                float fps = stillExporter != null ? App.UserConfig.Video.FPS : 30f;
+                if (fps <= 0f) fps = 30f;
+                currentVideoLength = (float)stillExporter.FrameCount / fps;
+            }
+            else if (classicRecorder != null)
+            {
+                currentVideoLength = (float)classicRecorder.FrameCount / (float)classicRecorder.FPS;
+            }
+
             bool validVideoLength = currentVideoLength >= m_VideoCaptureMinDuration;
 
-            string filePath = VideoRecorderUtils.ActiveCaptureFilePath;
+            string filePath = null;
+            if (classicRecorder != null)
+            {
+                filePath = classicRecorder.FilePath;
+            }
+            else if (stillExporter != null)
+            {
+                filePath = stillExporter.FilePath;
+            }
+
             VideoRecorderUtils.StopVideoCapture(validVideoLength);
 
             m_CurrentVideoState = validVideoLength ? VideoState.Processing : VideoState.Ready;
