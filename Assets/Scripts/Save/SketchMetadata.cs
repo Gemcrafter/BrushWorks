@@ -709,6 +709,18 @@ namespace TiltBrush
     }
 
     [Serializable]
+    public class MirrorSaveSlotEntry
+    {
+        public int Index
+        {
+            get; set;
+        }
+        public TrTransform Transform
+        {
+            get; set;
+        }
+    }
+
     public class TiltText
     {
         public TrTransform Transform { get; set; }
@@ -873,10 +885,21 @@ namespace TiltBrush
         public TiltImages75[] ImageIndex { get; set; }
 
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
-        public Mirror Mirror { get; set; }
+        public Mirror Mirror
+        {
+            get; set;
+        }
+        // Multi-slot mirror poses (exact scene-space transforms). Optional / backward compatible.
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
-        public Guides[] GuideIndex { get; set; }
-        // Added in 9.1
+        public MirrorSaveSlotEntry[] MirrorSaveSlots
+        {
+            get; set;
+        }
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public Guides[] GuideIndex
+        {
+            get; set;
+        }        // Added in 9.1
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
         public Palette Palette { get; set; }
         // Added in 10.0

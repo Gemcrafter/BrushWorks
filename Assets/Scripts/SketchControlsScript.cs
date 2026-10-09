@@ -208,6 +208,11 @@ namespace TiltBrush
             LoadQuillConfirmUnsaved = 13000,
             LoadQuillFile = 13001,
             OpenQuillPanelSearchPopup = 13002,
+            ClearSelection = 14000,
+            SelectAllStrokes = 14001,
+            InvertStrokeSelection = 14002,
+            MirrorCopySelection = 14003,
+
         }
 
         public enum ControlsType
@@ -5071,6 +5076,21 @@ namespace TiltBrush
                         EatToolScaleInput();
                         break;
                     }
+                case GlobalCommands.MirrorCopySelection:
+                    ClipboardManager.Instance.MirrorCopySelection();
+                    EatToolScaleInput();
+                    break;
+                case GlobalCommands.ClearSelection:
+                    SelectionManager.m_Instance.ClearActiveSelection();
+                    break;
+                case GlobalCommands.SelectAllStrokes:
+                    SketchSurfacePanel.m_Instance.EnableSpecificTool(BaseTool.ToolType.SelectionTool);
+                    SelectionManager.m_Instance.SelectAllStrokes(App.ActiveCanvas);
+                    EatGazeObjectInput();
+                    break;
+                case GlobalCommands.InvertStrokeSelection:
+                    SelectionManager.m_Instance.InvertStrokeSelection(App.ActiveCanvas);
+                    break;
                 case GlobalCommands.AdvancedPanelsToggle:
                     m_PanelManager.ToggleAdvancedPanels();
                     // If we're now in basic mode, ensure we don't have advanced abilities.
@@ -5656,6 +5676,15 @@ namespace TiltBrush
                         m_WidgetManager.ImageWidgets.Any(w => w.gameObject.activeSelf);
                 case GlobalCommands.ResetAllPanels: return m_PanelManager.PanelsHaveBeenCustomized();
                 case GlobalCommands.Duplicate: return ClipboardManager.Instance.CanCopy;
+                case GlobalCommands.MirrorCopySelection:
+                    return ClipboardManager.Instance.CanCopy &&
+                        PointerManager.m_Instance != null &&
+                        (PointerManager.m_Instance.CurrentSymmetryMode == PointerManager.SymmetryMode.SinglePlane ||
+                         PointerManager.m_Instance.CurrentSymmetryMode == PointerManager.SymmetryMode.MultiMirror);
+                case GlobalCommands.ClearSelection:
+                    return SelectionManager.m_Instance.HasSelection;
+                case GlobalCommands.SelectAllStrokes:
+                    return SketchMemoryScript.m_Instance.HasVisibleObjects();
                 case GlobalCommands.ToggleGroupStrokesAndWidgets: return SelectionManager.m_Instance.SelectionCanBeGrouped;
                 case GlobalCommands.SaveModel:
                 case GlobalCommands.SaveSelected:
@@ -5664,8 +5693,13 @@ namespace TiltBrush
                     return PointerManager.m_Instance.CurrentSymmetryMode !=
                         PointerManager.SymmetryMode.None;
                 case GlobalCommands.InvertSelection:
-                case GlobalCommands.FlipSelection:
+                case GlobalCommands.InvertStrokeSelection:
                     return SelectionManager.m_Instance.HasSelection;
+                case GlobalCommands.FlipSelection:
+                    return SelectionManager.m_Instance.HasSelection &&
+                        PointerManager.m_Instance != null &&
+                        PointerManager.m_Instance.SymmetryWidget != null &&
+                        PointerManager.m_Instance.CurrentSymmetryMode != PointerManager.SymmetryMode.None;
                 case GlobalCommands.SelectAll:
                     return SketchMemoryScript.m_Instance.HasVisibleObjects() ||
                         m_WidgetManager.HasSelectableWidgets();

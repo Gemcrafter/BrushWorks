@@ -1,4 +1,4 @@
-﻿// Copyright 2020 The Tilt Brush Authors
+// Copyright 2020 The Tilt Brush Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,7 +25,10 @@ namespace TiltBrush
     /// position, etc.
     public class ClipboardManager : MonoBehaviour
     {
-        static public ClipboardManager Instance { get; private set; }
+        static public ClipboardManager Instance
+        {
+            get; private set;
+        }
 
         [SerializeField] private Vector3 m_DuplicateOffset;
 
@@ -86,6 +89,52 @@ namespace TiltBrush
                 new DuplicateSelectionCommand(dupXf)
             );
         }
-    }
+
+        /// Copies selection across the live mirror. No offset, no identity clone.
+        /// SinglePlane: one reflection. MultiMirror: every non-original slot.
+        public void MirrorCopySelection()
+        {
+            if (!CanCopy)
+            {
+                Debug.LogError("[ClipboardManager.MirrorCopySelection] skip noSelection");
+                return;
+            }
+            if (PointerManager.m_Instance == null)
+            {
+                Debug.LogError("[ClipboardManager.MirrorCopySelection] skip noPointer");
+                return;
+            }
+            var mode = PointerManager.m_Instance.CurrentSymmetryMode;
+            if (mode != PointerManager.SymmetryMode.SinglePlane &&
+                mode != PointerManager.SymmetryMode.MultiMirror)
+            {
+                Debug.LogError(
+                    "[ClipboardManager.MirrorCopySelection] skip mode=" + mode);
+                return;
+            }
+
+            var controller = InputManager.ControllerName.Brush;
+            if (SketchControlsScript.m_Instance.OneHandGrabController != InputManager.ControllerName.None)
+            {
+                controller = SketchControlsScript.m_Instance.OneHandGrabController;
+            }
+            InputManager.m_Instance.TriggerHapticsPulse(controller, 3, 0.15f, 0.07f);
+            AudioManager.m_Instance.PlayDuplicateSound(
+                InputManager.m_Instance.GetControllerPosition(controller));
+
+            var mirrorCopy = new MirrorCopySelectionCommand();
+            if (mirrorCopy.CreatedCount > 0)
+            {
+                SketchMemoryScript.m_Instance.PerformAndRecordCommand(mirrorCopy);
+            }
+            else
+            {
+                Debug.LogError(
+                    "[ClipboardManager.MirrorCopySelection] no copies mode=" + mode);
+            }
+        }
+
+
+    } // Function Set complete
 
 } // namespace TiltBrush

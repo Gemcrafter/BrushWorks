@@ -117,6 +117,8 @@ namespace TiltBrush
             WhatsNewPanel = 20300,
             BlocksPromoPanel = 20301,
             BrushCuration = 20302,
+            MirrorControls = 20303,
+            MultiMirrorSettings = 20305,
             AdminPanelViewOnly = 20302,
         }
 

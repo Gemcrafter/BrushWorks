@@ -1,4 +1,4 @@
-﻿// Copyright 2020 The Tilt Brush Authors
+// Copyright 2020 The Tilt Brush Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -41,7 +41,13 @@ namespace TiltBrush
             public Vector3 endState;
         }
 
-        public GrabWidget Widget { get { return m_Widget; } }
+        public GrabWidget Widget
+        {
+            get
+            {
+                return m_Widget;
+            }
+        }
 
         /// There is no reasonable way for a caller to know what to pass for "endCustomDimension",
         /// because moving or scaling the widget (with some change in endXf) may cause the widget's
@@ -210,5 +216,7 @@ namespace TiltBrush
             m_Final = true;
             return false;
         }
+
     }
+
 } // namespace TiltBrush

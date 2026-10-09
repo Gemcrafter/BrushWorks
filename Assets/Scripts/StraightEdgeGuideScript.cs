@@ -1,4 +1,4 @@
-﻿// Copyright 2020 The Tilt Brush Authors
+// Copyright 2020 The Tilt Brush Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -240,7 +240,7 @@ namespace TiltBrush
         }
 
         // Pass pointer position in room space
-        public bool UpdateTarget(Vector3 vPointer, bool endpointSnapped = false)
+        public bool UpdateTarget(Vector3 vPointer, bool endpointSnapped = false, bool allowEndpointSnap = true)
         {
             // Everything is done in room coordinates, so the _RS suffixes are omitted
             TrTransform xfWorldFromCanvas = Coords.CanvasPose;
@@ -255,7 +255,7 @@ namespace TiltBrush
                 vTarget = vOrigin + ApplySnap(vTarget - vOrigin);
             }
 
-            if (!endpointSnapped && m_CurrentShape == Shape.Line &&
+            if (allowEndpointSnap && !endpointSnapped && m_CurrentShape == Shape.Line &&
                 TryGetEndpointSnap(vTarget, out Vector3 snappedTarget))
             {
                 // Avoid snapping to the origin which can create degenerate strokes.

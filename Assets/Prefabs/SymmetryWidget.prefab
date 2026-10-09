@@ -638,12 +638,30 @@ MonoBehaviour:
     m_Direction: 5
   m_GuideBeamLength: 3
   m_SnapColor: {r: 0.06314879, g: 0.53676474, b: 0.37998155, a: 1}
+  m_LiveMirrorTintEnabled: 0
+  m_LiveMirrorTint: {r: 1, g: 1, b: 1, a: 1}
   m_SnapOrientationSpeed: 0.2
   m_SnapXZPlaneStickyAmount: 25
+  m_ShowThirdAxisLive: 1
+  m_ShowThirdAxisSlotGuide: 1
+  m_LockOrientation: 1
+  m_LockSpin: 1
+  m_PreferredOrientation: 2
   m_JumpToUserControllerOffsetDistance: 1.25
   m_JumpToUserControllerYOffset: 2
   m_SymmetryDomainPrefab: {fileID: 5706923482183073426, guid: a9d2d6d7c589868478582328363b3a90, type: 3}
   m_SymmetryDomainParent: {fileID: 8923540458886705829}
+  m_TunnelLockActive: 1
+  m_AxisLock: 0
+  m_MirrorSaveSlotVisibleCount: 20
+  m_SlotGuidePrefab: {fileID: 5724625190249642731, guid: 679a481a40cb8c04f9554a51fa0b29b0,
+    type: 3}
+  m_SlotGuideRegular: {r: 0.30495724, g: 0.6431217, b: 0.8396226, a: 1}
+  m_SlotGuideHyperspace: {r: 0.9716981, g: 0.7446068, b: 0.022917405, a: 1}
+  m_SlotGuideLatent: {r: 0.23921567, g: 0.7529412, b: 0.608864, a: 1}
+  m_SlotGuideBeamLengthScale: 0.5
+  m_SlotGuideDisplayScale: 1
+  m_SlotGuideEmissionScale: 1
 --- !u!114 &8373124986442555544
 MonoBehaviour:
   m_ObjectHideFlags: 0
