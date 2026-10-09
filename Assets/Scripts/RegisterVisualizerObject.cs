@@ -1,4 +1,4 @@
-﻿// Copyright 2020 The Tilt Brush Authors
+// Copyright 2020 The Tilt Brush Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,19 +16,23 @@ using UnityEngine;
 
 namespace TiltBrush
 {
-
     public class RegisterVisualizerObject : MonoBehaviour
     {
-        public bool m_ShowInReactorModeOnly = false;
+        [SerializeField] public bool m_ShowInReactorModeOnly = false;
 
+        // Update 2134 RegisterVisualizerObject.Awake
+        // Purpose: Add diagnostic logging to determine why visualizer objects are not appearing in VisualizerManager.m_VisualizerObjects during Simulated BPM tests.
         void Awake()
         {
-            VisualizerManager.m_Instance.RegisterVisualizerObject(this.gameObject);
-        }
-
-        void OnDestroy()
-        {
-            VisualizerManager.m_Instance.UnregisterVisualizerObject(this.gameObject);
+            if (VisualizerManager.m_Instance == null)
+            {
+                Debug.LogError("[RegisterVisualizerObject] VisualizerManager.m_Instance is NULL at Awake time on " + gameObject.name);
+            }
+            else
+            {
+                VisualizerManager.m_Instance.RegisterVisualizerObject(this.gameObject);
+                Debug.Log("[RegisterVisualizerObject] Registered: " + gameObject.name);
+            }
         }
     }
-} // namespace tiltBrush
+}

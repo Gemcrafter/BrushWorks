@@ -13,6 +13,7 @@
 // limitations under the License.
 
 using UnityEngine;
+
 #if USD_SUPPORTED
 using System;
 using USD.NET;
@@ -64,7 +65,15 @@ namespace TiltBrush
 
         public bool IsRecording { get { return m_IsRecording; } }
         public bool IsFinished { get { return m_Scene.Time.Value >= m_Scene.EndTime; } }
-        public double Duration { get { return m_Scene.EndTime - m_Scene.StartTime; } }
+        public double Duration
+        {
+            get
+            {
+                if (m_Scene == null) return 0;
+                return m_Scene.EndTime - m_Scene.StartTime;
+            }
+        }
+
 
         public double Time
         {
@@ -83,6 +92,8 @@ namespace TiltBrush
             }
         }
 
+
+        /// Starts recording the transform to a named transform in a new usd file given by the path.
         /// Starts recording the transform to a named transform in a new usd file given by the path.
         public bool StartRecording(string path, string sketchName = "/Sketch", string xformName = "/VideoCamera")
         {
@@ -106,54 +117,109 @@ namespace TiltBrush
                 return false;
             }
 
+            // If a previous recording left a live scene, release it first.
+            if (m_Scene != null)
+            {
+                try { m_Scene.Close(); } catch { }
+                m_Scene = null;
+            }
+
             var sketchRoot = ExportUsd.CreateSketchRoot();
             m_UsdCamera = new UsdCameraXformSample();
+
             try
             {
                 m_Scene = USD.NET.Scene.Create(path);
             }
-            catch (ApplicationException /*e*/)
+            catch (ApplicationException)
+            {
+                // Layer identifier still registered from a prior incomplete stop.
+                // Force-release by path, then retry once.
+                try
+                {
+                    var existingLayer = pxr.SdfLayer.Find(path);
+                    if (existingLayer != null)
+                    {
+                        existingLayer.Clear();
+                    }
+                    // Also try removing any stage that still holds this root layer
+                    m_Scene = USD.NET.Scene.Create(path);
+                }
+                catch (Exception retryEx)
+                {
+                    Debug.LogError("Error creating usda file! " + retryEx.Message);
+                    m_Scene = null;
+                    return false;
+                }
+            }
+
+            if (m_Scene == null)
             {
                 Debug.LogError("Error creating usda file!");
                 return false;
             }
 
             m_Scene.Write(sketchName, sketchRoot);
-
             // The time code of the recording is in seconds.
             m_Scene.Stage.SetTimeCodesPerSecond(1);
-
             // CameraSample constructor converts the Unity Camera to USD.
             // Write the fallback camera parameters.
             var cameraSample = new UsdCameraSample(m_RecordingCamera);
-
             // Convert camera params to meters.
             cameraSample.clippingRange *= App.UNITS_TO_METERS;
-
             m_Scene.Write(m_xformName, cameraSample);
-
             m_Scene.Time = 0;
             m_Scene.StartTime = 0;
             m_Scene.EndTime = 0;
-
             m_IsRecording = true;
             return true;
         }
 
-        /// Stops recording the transform.
+
+        /// Stops recording the transform and fully releases the USD layer identifier
+        /// when this was an active recording session. Playback-loaded scenes are left intact.
         public void Stop()
         {
-            if (m_IsRecording)
+            if (!m_IsRecording || m_Scene == null)
+            {
+                // Not an active recording (e.g. offline playback) — do not destroy the scene.
+                m_IsRecording = false;
+                m_RecordingCamera = null;
+                return;
+            }
+
+            try
             {
                 m_Scene.EndTime = m_Scene.Time.Value;
                 m_Scene.Save();
-                m_IsRecording = false;
-                m_RecordingCamera = null;
             }
+            catch (Exception ex)
+            {
+                Debug.LogError("[UsdPathSerializer.Stop] Save failed: " + ex.Message);
+            }
+
+            m_IsRecording = false;
+            m_RecordingCamera = null;
+
+            // Release only after a real recording so the layer identifier can be reused.
+            try
+            {
+                m_Scene.Close();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError("[UsdPathSerializer.Stop] Close failed: " + ex.Message);
+            }
+            m_Scene = null;
         }
+
 
         public void Save()
         {
+            if (m_Scene == null)
+            {
+                return;
+            }
             m_Scene.Save();
         }
 
@@ -166,6 +232,7 @@ namespace TiltBrush
             m_Scene = Scene.Open(path);
             return m_Scene != null;
         }
+
 
         /// Plays back a named transform onto the current transform from a usd path.
         /// The transform can optionally be smoothed using exponential smoothing.
@@ -261,7 +328,7 @@ namespace TiltBrush
             m_UsdCamera.fov = m_RecordingCamera.fieldOfView;
             m_Scene.Write(m_xformName, m_UsdCamera);
         }
-        
+
 #else
 
         // Non-desktop builds don't support the Unity USD library,
@@ -279,6 +346,8 @@ namespace TiltBrush
         public bool IsRecording => m_IsRecording;
         public bool IsFinished => !m_IsRecording;
         public double Duration => m_EndTime - m_StartTime;
+
+
         public double Time
         {
             get => m_Time;
@@ -291,6 +360,7 @@ namespace TiltBrush
                 }
             }
         }
+
 
         public bool StartRecording(string path, string sketchName = "/Sketch", string xformName = "/VideoCamera")
         {
@@ -341,6 +411,8 @@ namespace TiltBrush
         public void Deserialize() { }
 
         public void Serialize() { }
+
+
 #endif
     }
 } // namespace TiltBrush

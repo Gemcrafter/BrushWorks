@@ -38,9 +38,10 @@ namespace TiltBrush
                     11, FontStyle.Bold, TextAnchor.MiddleLeft
                 );
 
+
                 EditorGUILayout.Space();
-                InspectorUtils.LayoutTexture("Waveform texture:", t.WaveformTexture);
-                InspectorUtils.LayoutTexture("FFT texture:", t.FFTTexture);
+                InspectorUtils.LayoutTexture("Waveform texture:", t.WaveformTexture as Texture2D);
+                InspectorUtils.LayoutTexture("FFT texture:", t.FFTTexture as Texture2D);
 
                 InspectorUtils.LayoutBarVec4("BandPeakLevelsOutput", t.BandPeakLevelsOutput, Color.blue);
                 InspectorUtils.LayoutBarVec4("BeatOutput", t.BeatOutput, Color.blue);

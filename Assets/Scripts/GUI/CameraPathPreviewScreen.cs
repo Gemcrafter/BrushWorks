@@ -1,4 +1,4 @@
-﻿// Copyright 2020 The Tilt Brush Authors
+// Copyright 2020 The Tilt Brush Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -126,12 +126,11 @@ namespace TiltBrush
             Vector3 reticlePos = SketchControlsScript.m_Instance.GetUIReticlePos();
             Ray reticleRay = new Ray(reticlePos - transform.forward, transform.forward);
 
-            // Did we hit the scrub bar?
             m_ScrubBarHasFocus = BasePanel.DoesRayHitCollider(reticleRay, m_ScrubBar, true);
             if (!m_ScrubBarHasFocus)
             {
-                // Nope.  Default behavior.
-                base.OnButtonPressed();
+                SketchControlsScript.m_Instance.IssueGlobalCommand(
+                    SketchControlsScript.GlobalCommands.ToggleCameraPathPreview);
             }
         }
 

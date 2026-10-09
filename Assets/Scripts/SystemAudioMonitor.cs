@@ -1,4 +1,4 @@
-﻿// Copyright 2020 The Tilt Brush Authors
+// Copyright 2020 The Tilt Brush Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -482,9 +482,10 @@ namespace TiltBrush
             }
         }
 
+        // SystemAudioMonitor.SingleBlockNotificationStreamOnSingleBlockRead
         void SingleBlockNotificationStreamOnSingleBlockRead(object sender, SingleBlockReadEventArgs e)
         {
-            // Normalize incoming values.
+            // Normalize incoming values (existing visualizer path — unchanged).
             m_SourcePeak = Mathf.Max(m_SourcePeak, e.Left);
             m_SourcePeak = Mathf.Max(m_SourcePeak, e.Right);
 
@@ -494,9 +495,21 @@ namespace TiltBrush
             float rightNormalized = e.Right * renormalizationMultiplier;
 
             m_HotValues.Add(leftNormalized, rightNormalized);
+
             if (VideoRecorderUtils.ActiveVideoRecording != null)
             {
                 VideoRecorderUtils.ActiveVideoRecording.ProcessAudio(leftNormalized, rightNormalized);
+            }
+
+            // ====================================================================
+            // TWO-PASS HiFi BRIDGE (system audio → AudioCaptureManager)
+            // Only records when StartHiFiAudioRecording has armed the flag.
+            // Uses raw samples for a faithful soundtrack; does not affect
+            // standard recording or visualizer normalization.
+            // ====================================================================
+            if (AudioCaptureManager.m_Instance != null)
+            {
+                AudioCaptureManager.m_Instance.AppendHiFiSamplePair(e.Left, e.Right);
             }
         }
 

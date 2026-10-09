@@ -468,7 +468,7 @@ namespace TiltBrush
 
         public void AudioReactiveBrushesActive(bool active)
         {
-            m_RequestingAudioReactiveMode = ActiveCanvas;
+            m_RequestingAudioReactiveMode = active;
             AudioCaptureManager.m_Instance.CaptureAudio(active);
             VisualizerManager.m_Instance.EnableVisuals(active);
             Switchboard.TriggerAudioReactiveStateChanged();
