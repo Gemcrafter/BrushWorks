@@ -1,4 +1,4 @@
-﻿// Copyright 2020 The Tilt Brush Authors
+// Copyright 2020 The Tilt Brush Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,7 +20,6 @@ using Brush = TiltBrush.BrushDescriptor;
 
 namespace TiltBrush
 {
-
     [System.Serializable]
     public struct BlocksMaterial
     {
@@ -39,7 +38,6 @@ namespace TiltBrush
         {
             Debug.Assert(m_Instance == null);
             m_Instance = container.AddComponent<BrushCatalog>();
-
             // For unit testing, probably best to have all the descriptors available,
             // rather than just a subset of them that are in a manifest.
             m_Instance.m_GuidToBrush = UnityEditor.AssetDatabase.FindAssets("t:BrushDescriptor")
@@ -70,6 +68,7 @@ namespace TiltBrush
         private Dictionary<Material, Brush> m_MaterialToBrush;
 
         public bool IsLoading { get { return m_IsLoading; } }
+
         public Brush GetBrush(Guid guid)
         {
             try
@@ -81,6 +80,7 @@ namespace TiltBrush
                 return null;
             }
         }
+
         public Brush DefaultBrush
         {
             get
@@ -92,10 +92,12 @@ namespace TiltBrush
                 return m_DefaultBrush;
             }
         }
+
         public IEnumerable<Brush> AllBrushes
         {
             get { return m_AllBrushes; }
         }
+
         public List<Brush> GuiBrushList
         {
             get { return m_GuiBrushList; }
@@ -123,11 +125,19 @@ namespace TiltBrush
             Shader.SetGlobalTexture("_GlobalNoiseTexture", m_GlobalNoiseTexture);
         }
 
-        /// Begins reloading any brush assets that come from loose files.
-        /// The "BrushCatalogChanged" event will be fired when this is complete.
+
+
         public void BeginReload()
         {
             m_IsLoading = true;
+
+            HiddenBrushSet.PopulateFromDisk();
+            bool sortEnabled = HiddenBrushSet.SortEnabled;
+            bool workingMode =
+                HiddenBrushSet.ActiveDisplayMode == HiddenBrushSet.DisplayMode.Working;
+            bool displayAll = HiddenBrushSet.IsDisplayingAllSets();
+            string displaySetId = HiddenBrushSet.ActiveDisplaySetId;
+            bool concealCustom = HiddenBrushSet.ConcealCustom;
 
             // Recreate m_GuidToBrush
             {
@@ -148,23 +158,18 @@ namespace TiltBrush
                     m_GuidToBrush[brush.m_Guid] = brush;
                 }
 
-                // Add reverse links to the brushes
-                // Auto-add brushes as compat brushes
                 foreach (var brush in manifestBrushes) { brush.m_SupersededBy = null; }
                 foreach (var brush in manifestBrushes)
                 {
                     var older = brush.m_Supersedes;
                     if (older == null) { continue; }
-                    // Add as compat
                     if (!m_GuidToBrush.ContainsKey(older.m_Guid))
                     {
                         m_GuidToBrush[older.m_Guid] = older;
                         older.m_HiddenInGui = true;
                     }
-                    // Set reverse link
                     if (older.m_SupersededBy != null)
                     {
-                        // No need to warn if the superseding brush is the same
                         if (older.m_SupersededBy.name != brush.name)
                         {
                             Debug.LogWarningFormat(
@@ -181,20 +186,156 @@ namespace TiltBrush
                 m_AllBrushes = new HashSet<Brush>(m_GuidToBrush.Values);
             }
 
-            // Postprocess: put brushes into parse-friendly list
+            // Eligible brushes (compat + experimental). Conceal + display set + sort after.
             m_GuiBrushList.Clear();
+            var eligible = new List<Brush>();
+
             foreach (var brush in m_GuidToBrush.Values)
             {
-                // Some brushes are hardcoded as hidden
-                if (brush.m_HiddenInGui) continue;
-                // Always include if experimental mode is on
-                if (Config.IsExperimental || !App.Instance.IsBrushExperimental(brush))
+                if (brush.m_HiddenInGui)
                 {
-                    m_GuiBrushList.Add(brush);
+                    continue;
+                }
+
+                if (!(Config.IsExperimental || !App.Instance.IsBrushExperimental(brush)))
+                {
+                    continue;
+                }
+
+                if (concealCustom && !HiddenBrushSet.IsStockBrush(brush))
+                {
+                    continue;
+                }
+
+                if (!displayAll)
+                {
+                    if (!BrushMatchesDisplaySet(brush, displaySetId))
+                    {
+                        continue;
+                    }
+                }
+
+                eligible.Add(brush);
+            }
+
+            if (sortEnabled)
+            {
+                var stockList = new List<Brush>();
+                var untetheredList = new List<Brush>();
+                var customBuckets = new SortedDictionary<int, List<Brush>>();
+
+                for (int i = 0; i < eligible.Count; ++i)
+                {
+                    Brush brush = eligible[i];
+                    string customId = HiddenBrushSet.GetPaletteIdForBrush(brush.m_Guid);
+
+                    if (HiddenBrushSet.IsStockBrush(brush) && string.IsNullOrEmpty(customId))
+                    {
+                        stockList.Add(brush);
+                        continue;
+                    }
+
+                    if (string.IsNullOrEmpty(customId))
+                    {
+                        untetheredList.Add(brush);
+                        continue;
+                    }
+
+                    int paletteIndex = HiddenBrushSet.ParsePaletteIndex(customId);
+                    int displayOrder = HiddenBrushSet.GetDisplayOrder(customId);
+                    int key = displayOrder * 1000 + Math.Max(paletteIndex, 0);
+                    if (!customBuckets.ContainsKey(key))
+                    {
+                        customBuckets[key] = new List<Brush>();
+                    }
+                    customBuckets[key].Add(brush);
+                }
+
+                stockList.Sort((a, b) =>
+                {
+                    int aa = HiddenBrushSet.IsStockBasic(a) ? 0 : 1;
+                    int bb = HiddenBrushSet.IsStockBasic(b) ? 0 : 1;
+                    return aa.CompareTo(bb);
+                });
+
+                var slottedList = new List<Brush>();
+                foreach (var kvp in customBuckets)
+                {
+                    slottedList.AddRange(kvp.Value);
+                }
+
+                // UntetheredPlacement only (replaces DefaultsSort + LoosePlacement matrix).
+                // Front = UntetheredToFront: Stock -> Untethered -> Slotted
+                // Back  = UntetheredToBack:  Slotted -> Untethered -> Stock
+                if (HiddenBrushSet.UntetheredPlacement == HiddenBrushSet.UntetheredPlacementMode.Front)
+                {
+                    m_GuiBrushList.AddRange(stockList);
+                    m_GuiBrushList.AddRange(untetheredList);
+                    m_GuiBrushList.AddRange(slottedList);
+                }
+                else
+                {
+                    m_GuiBrushList.AddRange(slottedList);
+                    m_GuiBrushList.AddRange(untetheredList);
+                    m_GuiBrushList.AddRange(stockList);
                 }
             }
+            else
+            {
+                var userHiddenTail = new List<Brush>();
+
+                for (int i = 0; i < eligible.Count; ++i)
+                {
+                    Brush brush = eligible[i];
+                    if (displayAll && workingMode && HiddenBrushSet.IsHidden(brush.m_Guid))
+                    {
+                        userHiddenTail.Add(brush);
+                    }
+                    else
+                    {
+                        m_GuiBrushList.Add(brush);
+                    }
+                }
+
+                if (displayAll && workingMode)
+                {
+                    m_GuiBrushList.AddRange(userHiddenTail);
+                }
+            }
+
+            if (!displayAll && m_GuiBrushList.Count == 0)
+            {
+                Debug.LogWarning(string.Format(
+                    "BrushCatalog: display set {0} produced an empty GUI list.",
+                    displaySetId));
+            }
+
+            m_IsLoading = false;
             BrushCatalogChanged?.Invoke();
         }
+
+        /// Display-set filter: permanent 1/2 use stock tags; other ids use membership.
+        static bool BrushMatchesDisplaySet(Brush brush, string displaySetId)
+        {
+            if (string.IsNullOrEmpty(displaySetId))
+            {
+                return true;
+            }
+            if (HiddenBrushSet.IsPermanentSlot(displaySetId))
+            {
+                int index = HiddenBrushSet.ParsePaletteIndex(displaySetId);
+                if (index == HiddenBrushSet.PermanentSlotBasic)
+                {
+                    return HiddenBrushSet.IsStockBasic(brush);
+                }
+                if (index == HiddenBrushSet.PermanentSlotAdvanced)
+                {
+                    return HiddenBrushSet.IsStockAdvanced(brush);
+                }
+            }
+            return HiddenBrushSet.IsInSet(displaySetId, brush.m_Guid);
+        }
+
 
 
         public Brush[] GetTagFilteredBrushList(List<string> includeTags = null, List<string> excludeTags = null)
@@ -239,6 +380,7 @@ namespace TiltBrush
                 BrushCatalogChanged?.Invoke();
             }
         }
+
         private void ModifyBrushTags()
         {
             Dictionary<string, string[]> tagsToAddMap = App.UserConfig.Brushes.AddTagsToBrushes;
@@ -256,7 +398,9 @@ namespace TiltBrush
                 }
                 else
                 {
-                    Debug.LogError($"Could not find brush ({brushTagsPair.Key}) to add tags to");
+                    Debug.LogError(string.Format(
+                        "Could not find brush ({0}) to add tags to",
+                        brushTagsPair.Key));
                 }
             }
 
@@ -271,7 +415,9 @@ namespace TiltBrush
                 }
                 else
                 {
-                    Debug.LogError($"Could not find brush ({brushTagsPair.Key}) to remove tags from");
+                    Debug.LogError(string.Format(
+                        "Could not find brush ({0}) to remove tags from",
+                        brushTagsPair.Key));
                 }
             }
 
@@ -279,9 +425,11 @@ namespace TiltBrush
             {
                 string searchString = brushDescription.Trim();
                 StringComparison comparison = StringComparison.CurrentCultureIgnoreCase;
-                return m_AllBrushes.FirstOrDefault(descriptor => descriptor.Description.Equals(searchString, comparison));
+                return m_AllBrushes.FirstOrDefault(descriptor =>
+                    descriptor.Description.Equals(searchString, comparison));
             }
         }
+
 
         // Returns brushes in both sections of the manifest (compat and non-compat)
         // Brushes that are found only in the compat section will have m_HiddenInGui = true
@@ -309,5 +457,7 @@ namespace TiltBrush
             }
             return output;
         }
-    }
-} // namespace TiltBrush
+
+    } // Functions Complete
+
+} // Namespace TiltBrush

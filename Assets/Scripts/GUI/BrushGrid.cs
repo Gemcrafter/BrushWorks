@@ -1,4 +1,4 @@
-﻿// Copyright 2020 The Tilt Brush Authors
+// Copyright 2020 The Tilt Brush Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,6 +11,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+
 
 using UnityEngine;
 
@@ -27,6 +29,28 @@ namespace TiltBrush
         [SerializeField] private float m_PadSwipeGiveMaxPercent = 0.5f;
         [SerializeField] private float m_PageFlipSpeed = 2f;
         [SerializeField] private float m_PageScrollRatio = 1.25f;
+
+        [Header("Corner marker tints")]
+        [SerializeField] Color m_ExperimentalIconTint = Color.white;
+        [SerializeField] Color m_AudioReactiveIconTint = Color.white;
+
+
+        public Color ExperimentalIconTint
+        {
+            get
+            {
+                return m_ExperimentalIconTint;
+            }
+        }
+
+        public Color AudioReactiveIconTint
+        {
+            get
+            {
+                return m_AudioReactiveIconTint;
+            }
+        }
+
 
         // Internal data
 
@@ -56,6 +80,11 @@ namespace TiltBrush
 
         const float NUM_COLS = 4;
         const float ANGLE_HIGHLIGHT_THRESHOLD = 5;
+
+
+
+        // Brush Hide Mode
+        public bool HideModeActive { get; set; }
 
         override protected void Awake()
         {
@@ -557,5 +586,11 @@ namespace TiltBrush
         {
             m_RequestedPageIndex = Mathf.Clamp(m_RequestedPageIndex + amount, 0, m_NumPages - 1);
         }
-    }
+
+        public void ToggleHideMode()
+        {
+            HideModeActive = !HideModeActive;
+        }
+
+    } // end of class
 } // namespace TiltBrush
