@@ -43,6 +43,13 @@ namespace TiltBrush
             cam.SetMode(DropCamWidget.Mode.Circular);
         }
 
+        [LuaDocsExample("Spectator:ShoulderFollow()")]
+        public static void ShoulderFollow()
+        {
+            var cam = SketchControlsScript.m_Instance.GetDropCampWidget();
+            cam.SetMode(DropCamWidget.Mode.ShoulderFollow);
+        }
+
         [LuaDocsDescription("Sets whether Widgets are visible to the spectator camera")]
         public static bool canSeeWidgets
         {

@@ -35,6 +35,7 @@ namespace TiltBrush
             Stationary = 1,
             Wobble = 2,
             Circular = 3,
+            ShoulderFollow = 4,
             CameraPath = 5600
         }
 
@@ -57,6 +58,9 @@ namespace TiltBrush
 
         [Header("Slow Follow Mode")]
         [SerializeField] private float m_SlowFollowSmoothing;
+
+        [Header("Shoulder Follow Mode")]
+        [SerializeField] private Vector3 m_ShoulderFollowOffset_HS = new Vector3(0f, 0f, -0.6f);
 
         private float m_GuideBeamShowRatio;
         private Renderer[] m_Renderers;
@@ -182,6 +186,7 @@ namespace TiltBrush
                 case Mode.Wobble: return "Figure 8";
                 case Mode.Circular: return "Circular";
                 case Mode.CameraPath: return "Camera Path";
+                case Mode.ShoulderFollow: return "Shoulder Camera";
             }
             return "";
         }
@@ -212,11 +217,17 @@ namespace TiltBrush
             m_GuideCircleObject.transform.localRotation = Quaternion.Inverse(transform.rotation) * Quaternion.Euler(0, (float)(-m_CircleRadians * Mathf.Rad2Deg), 0);
             m_GuideCircleObject.transform.localScale = 2.0f * m_CircleRadius * Vector3.one;
 
-            // On slow follow reset, snap to head.
+            // Snap follow modes to their target pose.
             if (m_CurrentMode == Mode.SlowFollow)
             {
                 transform.position = ViewpointScript.Head.position;
                 transform.rotation = ViewpointScript.Head.rotation;
+            }
+            else if (m_CurrentMode == Mode.ShoulderFollow)
+            {
+                Transform head = ViewpointScript.Head;
+                transform.position = head.position + head.rotation * m_ShoulderFollowOffset_HS;
+                transform.rotation = head.rotation;
             }
         }
 
@@ -283,36 +294,10 @@ namespace TiltBrush
                         }
                         break;
                     case Mode.SlowFollow:
-                        {
-                            if (App.UserConfig.Flags.AdvancedKeyboardShortcuts)
-                            {
-                                if (InputManager.m_Instance.GetKeyboardShortcutDown(
-                                    InputManager.KeyboardShortcut.DecreaseSlowFollowSmoothing))
-                                {
-                                    m_SlowFollowSmoothing -= 0.001f;
-                                    m_SlowFollowSmoothing = Mathf.Max(m_SlowFollowSmoothing, 0.0f);
-                                }
-                                else if (InputManager.m_Instance.GetKeyboardShortcutDown(
-                                    InputManager.KeyboardShortcut.IncreaseSlowFollowSmoothing))
-                                {
-                                    m_SlowFollowSmoothing += 0.001f;
-                                }
-                            }
-
-                            transform.position = Vector3.SmoothDamp(transform.position, ViewpointScript.Head.position,
-                                ref m_SlowFollowMoveVel, m_SlowFollowSmoothing, Mathf.Infinity, Time.deltaTime);
-
-                            Vector3 eulers = transform.rotation.eulerAngles;
-                            Vector3 targetEulers = ViewpointScript.Head.eulerAngles;
-                            eulers.x = Mathf.SmoothDampAngle(eulers.x, targetEulers.x,
-                                ref m_SlowFollowRotVel.x, m_SlowFollowSmoothing, Mathf.Infinity, Time.deltaTime);
-                            eulers.y = Mathf.SmoothDampAngle(eulers.y, targetEulers.y,
-                                ref m_SlowFollowRotVel.y, m_SlowFollowSmoothing, Mathf.Infinity, Time.deltaTime);
-                            eulers.z = Mathf.SmoothDampAngle(eulers.z, targetEulers.z,
-                                ref m_SlowFollowRotVel.z, m_SlowFollowSmoothing, Mathf.Infinity, Time.deltaTime);
-
-                            transform.rotation = Quaternion.Euler(eulers);
-                        }
+                        UpdateFollowCamera(useShoulderOffset: false);
+                        break;
+                    case Mode.ShoulderFollow:
+                        UpdateFollowCamera(useShoulderOffset: true);
                         break;
                     case Mode.Circular:
                         if (m_UserInteracting)
@@ -355,6 +340,47 @@ namespace TiltBrush
                         break;
                 }
             }
+        }
+
+        void UpdateFollowCamera(bool useShoulderOffset)
+        {
+            if (App.UserConfig.Flags.AdvancedKeyboardShortcuts)
+            {
+                if (InputManager.m_Instance.GetKeyboardShortcutDown(
+                    InputManager.KeyboardShortcut.DecreaseSlowFollowSmoothing))
+                {
+                    m_SlowFollowSmoothing -= 0.001f;
+                    m_SlowFollowSmoothing = Mathf.Max(m_SlowFollowSmoothing, 0.0f);
+                }
+                else if (InputManager.m_Instance.GetKeyboardShortcutDown(
+                    InputManager.KeyboardShortcut.IncreaseSlowFollowSmoothing))
+                {
+                    m_SlowFollowSmoothing += 0.001f;
+                }
+            }
+
+            Transform head = ViewpointScript.Head;
+            Vector3 targetPos = head.position;
+            if (useShoulderOffset)
+            {
+                targetPos += head.rotation * m_ShoulderFollowOffset_HS;
+            }
+
+            transform.position = Vector3.SmoothDamp(
+                transform.position, targetPos,
+                ref m_SlowFollowMoveVel, m_SlowFollowSmoothing,
+                Mathf.Infinity, Time.deltaTime);
+
+            Vector3 eulers = transform.rotation.eulerAngles;
+            Vector3 targetEulers = head.eulerAngles;
+            eulers.x = Mathf.SmoothDampAngle(eulers.x, targetEulers.x,
+                ref m_SlowFollowRotVel.x, m_SlowFollowSmoothing, Mathf.Infinity, Time.deltaTime);
+            eulers.y = Mathf.SmoothDampAngle(eulers.y, targetEulers.y,
+                ref m_SlowFollowRotVel.y, m_SlowFollowSmoothing, Mathf.Infinity, Time.deltaTime);
+            eulers.z = Mathf.SmoothDampAngle(eulers.z, targetEulers.z,
+                ref m_SlowFollowRotVel.z, m_SlowFollowSmoothing, Mathf.Infinity, Time.deltaTime);
+
+            transform.rotation = Quaternion.Euler(eulers);
         }
 
         private void FollowCameraPath()
@@ -419,8 +445,10 @@ namespace TiltBrush
 
         public bool ShouldHmdBeVisible()
         {
-            return (m_CurrentMode != Mode.SlowFollow) &&
-                (m_CurrentState == State.Showing || m_CurrentState == State.Visible);
+            bool isFollowMode = m_CurrentMode == Mode.SlowFollow
+                || m_CurrentMode == Mode.ShoulderFollow;
+            return !isFollowMode
+                && (m_CurrentState == State.Showing || m_CurrentState == State.Visible);
         }
 
         private static void ConfigureSpectatorCamera(Camera camera)

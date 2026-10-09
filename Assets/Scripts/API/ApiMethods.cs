@@ -893,6 +893,10 @@ namespace TiltBrush
                 case "camerapath":
                     cam.SetMode(DropCamWidget.Mode.CameraPath);
                     break;
+                case "shoulderfollow":
+                case "shoulder":
+                    cam.SetMode(DropCamWidget.Mode.ShoulderFollow);
+                    break;
             }
         }
 
