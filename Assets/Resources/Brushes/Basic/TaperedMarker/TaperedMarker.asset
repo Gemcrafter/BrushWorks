@@ -21,6 +21,7 @@ MonoBehaviour:
   m_Tags:
   - whiteboard
   - default
+  - stock_basic
   m_Nondeterministic: 0
   m_Supersedes: {fileID: 11400000, guid: e617036dc63ede649a1c716ac255dd88, type: 2}
   m_LooksIdentical: 0

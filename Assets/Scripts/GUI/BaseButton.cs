@@ -475,5 +475,10 @@ namespace TiltBrush
                 ButtonRenderer.material.SetFloat("_Aspect", aspect);
             }
         }
+        public Texture2D GetCurrentButtonTexture()
+        {
+            return m_CurrentButtonTexture != null ? m_CurrentButtonTexture : m_ButtonTexture;
+        }
+
     }
 } // namespace TiltBrush

@@ -23,6 +23,7 @@ MonoBehaviour:
   - default
   - audioreactive
   - particle
+  - stock_basic
   m_Nondeterministic: 1
   m_Supersedes: {fileID: 0}
   m_LooksIdentical: 0

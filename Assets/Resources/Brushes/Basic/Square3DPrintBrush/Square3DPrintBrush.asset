@@ -20,6 +20,7 @@ MonoBehaviour:
   m_BrushPrefab: {fileID: 100000, guid: a4e64d46fb8e77742a12b6538926a3dd, type: 3}
   m_Tags:
   - experimental
+  - stock_basic
   m_Nondeterministic: 0
   m_Supersedes: {fileID: 0}
   m_LooksIdentical: 0
