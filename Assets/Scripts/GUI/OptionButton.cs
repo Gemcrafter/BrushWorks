@@ -178,8 +178,24 @@ namespace TiltBrush
                     BasePanel panel = m_Manager.GetPanelForPopUps();
                     if (panel != null)
                     {
+                        if (panel is AdvancedLaunchPanel && panel.HasActivePopUp())
+                        {
+                            panel.CloseActivePopUp(true);
+                            SketchControlsScript.m_Instance.IssueGlobalCommand(
+                                m_Command, m_CommandParam, m_CommandParam2);
+                            ResetState();
+                            return;
+                        }
+
                         panel.CreatePopUp(m_Command, m_CommandParam, m_CommandParam2, m_PopupOffset,
                             PopupText);
+                        if (panel is AdvancedLaunchPanel)
+                        {
+                            SketchControlsScript.m_Instance.IssueGlobalCommand(
+                                m_Command, m_CommandParam, m_CommandParam2);
+                            panel.ClearDelayedPopupCommand();
+                            ((AdvancedLaunchPanel)panel).PlaceActiveMultiMirrorSettings();
+                        }
                         if (m_CenterPopupOnButton)
                         {
                             panel.PositionPopUp(transform.position +

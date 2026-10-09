@@ -119,6 +119,7 @@ namespace TiltBrush
             BrushCuration = 20304,
             MirrorControls = 20303,
             MultiMirrorSettings = 20305,
+            AdvancedLaunch = 20306,
             AdminPanelViewOnly = 20302,
         }
 
@@ -694,6 +695,23 @@ namespace TiltBrush
             }
         }
 
+        public bool HasActivePopUp()
+        {
+            return m_ActivePopUp != null;
+        }
+
+        public void ClearDelayedPopupCommand()
+        {
+            m_DelayedCommand = SketchControlsScript.GlobalCommands.Null;
+            m_DelayedCommandParam = -1;
+            m_DelayedCommandParam2 = -1;
+        }
+
+        protected virtual bool GazeDismissesActivePopUp()
+        {
+            return true;
+        }
+
         public void VerifyStateForFloating()
         {
             m_TransitionState = FixedTransitionState.Floating;
@@ -960,7 +978,7 @@ namespace TiltBrush
                     }
                     m_UIComponentManager.ManagerLostFocus();
                     m_UIComponentManager.Deactivate();
-                    if (m_ActivePopUp != null)
+                    if (m_ActivePopUp != null && GazeDismissesActivePopUp())
                     {
                         if (m_ActivePopUp.RequestClose())
                         {
@@ -1395,7 +1413,7 @@ namespace TiltBrush
                 }
                 else if (!m_ActivePopUp.InputObjectHasFocus() &&
                     (InputManager.m_Instance.GetCommandDown(InputManager.SketchCommands.Activate) ||
-                    m_PopUpGazeTimer > m_PopUpGazeDuration))
+                    (GazeDismissesActivePopUp() && m_PopUpGazeTimer > m_PopUpGazeDuration)))
                 {
                     // If we're not pointing at the popup and the user doesn't have focus on an element
                     // of the popup, dismiss the popup if we've pointed at it before, or there's input.
