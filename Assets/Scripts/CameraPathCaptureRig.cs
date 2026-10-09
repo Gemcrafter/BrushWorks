@@ -3637,7 +3637,7 @@ namespace TiltBrush
             {
                 System.Diagnostics.ProcessStartInfo startInfo = new System.Diagnostics.ProcessStartInfo
                 {
-                    FileName = "ffmpeg",
+                    FileName = FfmpegPipe.GetFfmpegExe() ?? "ffmpeg",
                     Arguments = ffmpegCommand,
                     UseShellExecute = false,
                     RedirectStandardOutput = true,
