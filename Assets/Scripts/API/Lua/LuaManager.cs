@@ -239,6 +239,10 @@ namespace TiltBrush
         public void Init(bool immediate = false)
         {
             if (m_IsInitialized) return;
+            if (this == null || gameObject == null || !gameObject.activeInHierarchy)
+            {
+                return;
+            }
             if (immediate)
             {
                 _InitImpl();
