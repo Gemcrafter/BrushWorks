@@ -116,7 +116,7 @@ namespace TiltBrush
             StencilSettings = 20200,
             WhatsNewPanel = 20300,
             BlocksPromoPanel = 20301,
-            BrushCuration = 20302,
+            BrushCuration = 20304,
             AdminPanelViewOnly = 20302,
         }
 
