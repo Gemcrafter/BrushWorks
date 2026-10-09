@@ -17,7 +17,27 @@ MonoBehaviour:
   m_Entries:
   - m_Id: 5065710952488960
     m_Key: ADMIN_PANEL_ADVANCED_BUTTON_DESCRIPTION
+    - m_Id: 533889788236099584
+    m_Key: ENVIRONMENT_DEEPSPACE
     m_Metadata:
+      m_Items: []
+  - m_Id: 533892614702067712
+    m_Key: ENVIRONMENT_SNOWFIELD
+    m_Metadata:
+      m_Items: []
+  - m_Id: 533885853169446912
+    m_Key: ENVIRONMENT_MIDNIGHTBLACK
+    m_Metadata:
+      m_Items: []
+  - m_Id: 538167935605501952
+    m_Key: ENVIRONMENT_VIDEOBLACK
+    m_Metadata:
+      m_Items: []
+  - m_Id: 538168799527268352
+    m_Key: ENVIRONMENT_VIDEOBLACKSOFT
+    m_Metadata:
+      m_Items: []
+  m_Metadata:
       m_Items: []
   - m_Id: 5056691860905984
     m_Key: ADMIN_PANEL_ADVANCED_PROMO
