@@ -122,7 +122,9 @@ namespace TiltBrush
         private string m_PreferredNewSketchFilenameBase;
         private bool m_LastSceneIsLegacy;
 
+        //  Allows user to set the starting point.
         private int m_LastNonexistentFileIndex = 0;
+        [SerializeField] private int m_NewSketchStartingIndex = 0;   // Inspector: raise this to force new Untitled_N to start high (e.g. 3000)
 
         private JsonSerializer m_JsonSerializer;
 
@@ -166,10 +168,16 @@ namespace TiltBrush
             }
         }
 
-        public TrTransform? LastThumbnail_SS { get; set; }
+        public TrTransform? LastThumbnail_SS
+        {
+            get; set;
+        }
 
         // Temporary storage for main sketch's camera state during SaveSelected
-        public SaveIconTool.CameraRigState? SavedThumbnailStateForRestore { get; set; }
+        public SaveIconTool.CameraRigState? SavedThumbnailStateForRestore
+        {
+            get; set;
+        }
 
         public TrTransform ReasonableThumbnail_SS
         {
@@ -197,20 +205,44 @@ namespace TiltBrush
             return m_SaveIconRenderTexture;
         }
 
-        public bool SuppressSaveNotifcation { set => m_SuppressNotify = value; }
+        public bool SuppressSaveNotifcation
+        {
+            set => m_SuppressNotify = value;
+        }
 
-        public bool CanOverwriteSource { get { return !m_LastSceneFile.ReadOnly; } }
+        public bool CanOverwriteSource
+        {
+            get
+            {
+                return !m_LastSceneFile.ReadOnly;
+            }
+        }
 
         public string LastMetadataError
         {
-            get { return m_LastJsonMetadatError; }
+            get
+            {
+                return m_LastJsonMetadatError;
+            }
         }
 
-        public string LastWriteSnapshotError { get => m_LastWriteSnapshotError; }
+        public string LastWriteSnapshotError
+        {
+            get => m_LastWriteSnapshotError;
+        }
 
-        public JsonSerializer JsonSerializer { get { return m_JsonSerializer; } }
+        public JsonSerializer JsonSerializer
+        {
+            get
+            {
+                return m_JsonSerializer;
+            }
+        }
 
-        public bool IsSavingAllowed() { return m_SaveCoroutine == null; }
+        public bool IsSavingAllowed()
+        {
+            return m_SaveCoroutine == null;
+        }
 
         public string GetLastFileHumanName()
         {
@@ -315,10 +347,19 @@ namespace TiltBrush
         }
 
 
+
         // Create a name that is guaranteed not to exist.
         public string GenerateNewUntitledFilename(string directory, string extension)
         {
             string filename = UNTITLED_PREFIX;
+
+            // Honour the editor-set floor so new sketches can start at a high number
+            // without colliding with existing low-numbered files.
+            if (m_NewSketchStartingIndex > m_LastNonexistentFileIndex)
+            {
+                m_LastNonexistentFileIndex = m_NewSketchStartingIndex;
+            }
+
             return GenerateNewFilename(filename, directory, extension);
         }
 
@@ -671,9 +712,16 @@ namespace TiltBrush
         /// will duplicate geometry on separate layers.
         public bool Load(SceneFileInfo fileInfo, bool bAdditive, int targetLayer, out List<Stroke> strokes)
         {
+            Debug.LogError(
+                "[SaveLoadScript.Load] LOAD: begin name=" +
+                (fileInfo != null ? fileInfo.HumanName : "null") +
+                " additive=" + bAdditive +
+                " layer=" + targetLayer +
+                " appState=" + App.CurrentState);
             m_LastThumbnailBytes = null;
             if (!fileInfo.IsHeaderValid())
             {
+                Debug.LogError("[SaveLoadScript.Load] LOAD: fail header");
                 OutputWindowScript.m_Instance.AddNewLine(
                     "Could not load: {0}", fileInfo.HumanName);
                 strokes = null;
@@ -684,6 +732,7 @@ namespace TiltBrush
             Stream metadata = GetMetadataReadStream(fileInfo);
             if (metadata == null)
             {
+                Debug.LogError("[SaveLoadScript.Load] LOAD: fail no metadata");
                 OutputWindowScript.m_Instance.AddNewLine("Could not load: {0}", fileInfo.HumanName);
                 strokes = null;
                 return false;
@@ -708,6 +757,7 @@ namespace TiltBrush
                     {
                         Debug.LogFormat("Lacking playback capabilities: {0}",
                             String.Join(", ", missingCapabilities));
+                        Debug.LogError("[SaveLoadScript.Load] LOAD: fail capabilities");
                         OutputWindowScript.m_Instance.AddNewLine(
                             "Lacking a capability to load {0}.  Upgrade Tilt Brush?",
                             fileInfo.HumanName);
@@ -731,6 +781,9 @@ namespace TiltBrush
                             environment, forceTransition: true,
                             keepSceneTransform: true, hasCustomLights: jsonData.Lights != null
                         );
+                        Debug.LogError(
+                            "[SaveLoadScript.Load] LOAD: env applied keepSceneTransform=true" +
+                            " forceTransition=true preset=" + environment.name);
                         // This will have been overwritten by Set
                         if (jsonData.Environment != null && jsonData.Environment.Skybox != null)
                         {
@@ -793,6 +846,7 @@ namespace TiltBrush
                     m_LastSceneIsLegacy |= legacySketch;
                     if (!success)
                     {
+                        Debug.LogError("[SaveLoadScript.Load] LOAD: fail ReadMemory");
                         OutputWindowScript.m_Instance.AddNewLine(
                             "Could not load: {0}", fileInfo.HumanName);
                         // Prevent it from being overwritten
@@ -868,9 +922,18 @@ namespace TiltBrush
                     {
                         WidgetManager.m_Instance.SetGaussianCaptureDataFromTilt(jsonData.GaussianCaptures);
                     }
+                    // Expanded for multipl Save Slots
                     if (jsonData.Mirror != null)
                     {
                         PointerManager.m_Instance.SymmetryWidgetFromMirror(jsonData.Mirror);
+                    }
+                    if (PointerManager.m_Instance != null &&
+                        PointerManager.m_Instance.SymmetryWidget != null)
+                    {
+                        PointerManager.m_Instance.SymmetryWidget.ImportMirrorSaveSlots(
+                            jsonData.MirrorSaveSlots);
+                        Debug.LogError(
+                            "[SaveLoadScript.Load] LOAD: ImportMirrorSaveSlots called");
                     }
                     if (jsonData.CameraPaths != null)
                     {
@@ -892,6 +955,7 @@ namespace TiltBrush
                 }
             }
 
+            Debug.LogError("[SaveLoadScript.Load] LOAD: success");
             return true;
         }
 
@@ -1180,6 +1244,9 @@ namespace TiltBrush
                 Debug.LogError($"LoadFromBytes: Error while loading scene from bytes. Exception: {ex.Message}");
             }
         }
-    }
+
+
+    } // Functions Complete
+
 
 } // namespace TiltBrush

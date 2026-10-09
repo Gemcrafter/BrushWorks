@@ -1,4 +1,4 @@
-﻿// Copyright 2020 The Tilt Brush Authors
+// Copyright 2020 The Tilt Brush Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -82,7 +82,8 @@ namespace TiltBrush
             bool deselect = false, bool initial = false, bool checkForClearedSelection = false,
             bool isGrabbingGroup = false, bool isEndGrabbingGroup = false,
             CanvasScript targetCanvas = null,
-            BaseCommand parent = null)
+            BaseCommand parent = null,
+            bool includeGroupedWidgets = true)
             : base(parent)
         {
             var selectedGroups = new Dictionary<SketchGroupTag, HashSet<CanvasScript>>();
@@ -134,12 +135,15 @@ namespace TiltBrush
 
             // Get the grouped widgets.
             var widgetsGrouped = new HashSet<GrabWidget>();
-            foreach (var groupCanvases in selectedGroups)
+            if (includeGroupedWidgets)
             {
-                foreach (var canvas in groupCanvases.Value)
+                foreach (var groupCanvases in selectedGroups)
                 {
-                    widgetsGrouped.UnionWith(
-                        GetWidgetsInGroup(groupCanvases.Key, canvas, deselect));
+                    foreach (var canvas in groupCanvases.Value)
+                    {
+                        widgetsGrouped.UnionWith(
+                            GetWidgetsInGroup(groupCanvases.Key, canvas, deselect));
+                    }
                 }
             }
 

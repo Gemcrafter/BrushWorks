@@ -1,4 +1,4 @@
-﻿// Copyright 2020 The Tilt Brush Authors
+// Copyright 2020 The Tilt Brush Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -75,6 +75,7 @@ namespace TiltBrush
         [SerializeField] private bool m_AllowHideWithToss = false;
         [SerializeField] private bool m_DisableDrift = false;
         [SerializeField] protected bool m_RecordMovements = false;
+        int m_LastAxisLockMask;
         [SerializeField] protected bool m_AllowSnapping = false;
         [SerializeField] private float m_SnapDisabledDelay = 0.2f;
         [SerializeField] private bool m_AllowPinning = false;
@@ -165,48 +166,78 @@ namespace TiltBrush
 
         public bool AllowTwoHandGrab
         {
-            get { return m_AllowTwoHandGrab; }
+            get
+            {
+                return m_AllowTwoHandGrab;
+            }
         }
 
         public bool AllowPinning
         {
-            get { return m_AllowPinning && App.Config.m_AllowWidgetPinning; }
+            get
+            {
+                return m_AllowPinning && App.Config.m_AllowWidgetPinning;
+            }
         }
 
         public virtual bool AllowDormancy
         {
-            get { return m_AllowDormancy; }
+            get
+            {
+                return m_AllowDormancy;
+            }
         }
 
         public float PinScalar
         {
-            get { return m_PinScalar; }
+            get
+            {
+                return m_PinScalar;
+            }
         }
 
         public bool IsSpinningFreely
         {
-            get { return m_IsSpinningFreely; }
+            get
+            {
+                return m_IsSpinningFreely;
+            }
         }
 
         public bool Restoring
         {
-            get { return m_Restoring; }
-            set { m_Restoring = value; }
+            get
+            {
+                return m_Restoring;
+            }
+            set
+            {
+                m_Restoring = value;
+            }
         }
 
         public bool Pinned
         {
-            get { return m_Pinned; }
+            get
+            {
+                return m_Pinned;
+            }
         }
 
         public virtual float HapticDuration
         {
-            get { return 0.025f; }
+            get
+            {
+                return 0.025f;
+            }
         }
 
         public ushort BatchId
         {
-            get { return m_BatchId; }
+            get
+            {
+                return m_BatchId;
+            }
         }
 
         public SketchGroupTag Group
@@ -244,22 +275,40 @@ namespace TiltBrush
 
         public bool Showing
         {
-            get { return m_CurrentState == State.Showing || m_CurrentState == State.Visible; }
+            get
+            {
+                return m_CurrentState == State.Showing || m_CurrentState == State.Visible;
+            }
         }
 
         virtual public bool SupportsNegativeSize => false;
 
-        public static Color InactiveGrey { get { return m_InactiveGrey; } }
+        public static Color InactiveGrey
+        {
+            get
+            {
+                return m_InactiveGrey;
+            }
+        }
 
         protected Vector3 Velocity_GS
         {
-            get { return ParentTransform.MultiplyVector(m_Velocity_LS); }
-            set { m_Velocity_LS = ParentTransform.inverse.MultiplyVector(value); }
+            get
+            {
+                return ParentTransform.MultiplyVector(m_Velocity_LS);
+            }
+            set
+            {
+                m_Velocity_LS = ParentTransform.inverse.MultiplyVector(value);
+            }
         }
 
         protected Vector3 AngularVelocity_GS
         {
-            get { return ParentTransform.rotation * m_AngularVelocity_LS; }
+            get
+            {
+                return ParentTransform.rotation * m_AngularVelocity_LS;
+            }
             set
             {
                 m_AngularVelocity_LS = Quaternion.Inverse(ParentTransform.rotation) * value;
@@ -287,7 +336,10 @@ namespace TiltBrush
         /// sometimes put their collider far away, since models can be very off-center.
         protected Transform CenterOfMassTransform
         {
-            get { return m_BoxCollider != null ? m_BoxCollider.transform : transform; }
+            get
+            {
+                return m_BoxCollider != null ? m_BoxCollider.transform : transform;
+            }
         }
 
         /// The pose of center of mass, relative to us (ie, in object space)
@@ -328,7 +380,10 @@ namespace TiltBrush
         // specific transforms.
         virtual public Transform GrabTransform_GS
         {
-            get { return transform; }
+            get
+            {
+                return transform;
+            }
         }
 
         TrTransform ParentTransform
@@ -385,10 +440,15 @@ namespace TiltBrush
         /// changes to CustomDimension, and vice versa.
         public virtual Vector3 CustomDimension
         {
-            get { return Vector3.one; }
+            get
+            {
+                return Vector3.one;
+            }
             // ReSharper disable once ValueParameterNotUsed
             // Intentionally not used.
-            set { }
+            set
+            {
+            }
         }
 
         /// Returns Axis.Invalid unless the widget is currently being manipulated
@@ -493,7 +553,10 @@ namespace TiltBrush
 
         public bool UserTwoHandGrabbing
         {
-            get { return m_UserTwoHandGrabbing; }
+            get
+            {
+                return m_UserTwoHandGrabbing;
+            }
         }
 
         // If true, caller must also pass:
@@ -526,7 +589,10 @@ namespace TiltBrush
             }
         }
 
-        virtual public int GetTiltMeterCost() { return 0; }
+        virtual public int GetTiltMeterCost()
+        {
+            return 0;
+        }
 
         // Returns true if the widget is in a state that should trigger collisions.
         // May be overridden in subclasses if there are different requirements for
@@ -723,7 +789,10 @@ namespace TiltBrush
             m_Velocity_LS = m_AngularVelocity_LS = Vector3.zero;
         }
 
-        protected float GetShowRatio() { return m_ShowTimer / m_ShowDuration; }
+        protected float GetShowRatio()
+        {
+            return m_ShowTimer / m_ShowDuration;
+        }
 
         virtual protected void Awake()
         {
@@ -787,7 +856,9 @@ namespace TiltBrush
         }
 
         /// Called when transitioning into State.Hiding.
-        protected virtual void OnHideStart() { }
+        protected virtual void OnHideStart()
+        {
+        }
 
         virtual public void Show(bool bShow, bool bPlayAudio = true)
         {
@@ -845,7 +916,10 @@ namespace TiltBrush
             ClearVelocities();
         }
 
-        public bool IsAvailable() { return m_CurrentState == State.Showing || m_CurrentState == State.Visible; }
+        public bool IsAvailable()
+        {
+            return m_CurrentState == State.Showing || m_CurrentState == State.Visible;
+        }
 
         void StartHideToss(Vector3 vLinVel, Vector3 vAngVel, Vector3 vPivot)
         {
@@ -1600,6 +1674,25 @@ namespace TiltBrush
         {
             var outXf_CS = App.ActiveCanvas.Pose.inverse * xf_GS;
             // Restore transforms for locked axes
+            int mask = 0;
+            if (SelectionManager.m_Instance.m_LockTranslationX) mask |= 1;
+            if (SelectionManager.m_Instance.m_LockTranslationY) mask |= 2;
+            if (SelectionManager.m_Instance.m_LockTranslationZ) mask |= 4;
+            if (SelectionManager.m_Instance.m_LockRotationX) mask |= 8;
+            if (SelectionManager.m_Instance.m_LockRotationY) mask |= 16;
+            if (SelectionManager.m_Instance.m_LockRotationZ) mask |= 32;
+            if (mask != m_LastAxisLockMask)
+            {
+                m_LastAxisLockMask = mask;
+                Debug.LogError(
+                    "[GrabWidget.CalculateAxisLocks] tX=" +
+                    SelectionManager.m_Instance.m_LockTranslationX +
+                    " tY=" + SelectionManager.m_Instance.m_LockTranslationY +
+                    " tZ=" + SelectionManager.m_Instance.m_LockTranslationZ +
+                    " rX=" + SelectionManager.m_Instance.m_LockRotationX +
+                    " rY=" + SelectionManager.m_Instance.m_LockRotationY +
+                    " rZ=" + SelectionManager.m_Instance.m_LockRotationZ);
+            }
             if (SelectionManager.m_Instance.m_LockTranslationX) outXf_CS.translation.x = transform.localPosition.x;
             if (SelectionManager.m_Instance.m_LockTranslationY) outXf_CS.translation.y = transform.localPosition.y;
             if (SelectionManager.m_Instance.m_LockTranslationZ) outXf_CS.translation.z = transform.localPosition.z;
@@ -1618,7 +1711,9 @@ namespace TiltBrush
 
         // Extension point for RecordAndSet*.
         // Called after it has finished doing all its work.
-        virtual protected void OnEndUpdateWithDesiredTransform() { }
+        virtual protected void OnEndUpdateWithDesiredTransform()
+        {
+        }
 
         public void PinFromSave()
         {
@@ -1630,6 +1725,10 @@ namespace TiltBrush
 
         public void SetPinned(bool bPin, bool fromSave = false)
         {
+            Debug.LogError(
+                "[GrabWidget.SetPinned] type=" + GetType().Name +
+                " pin=" + bPin +
+                " fromSave=" + fromSave);
             m_Pinned = bPin;
 
             // Destroy any lingering pin we have around and get a new one.
@@ -1774,9 +1873,14 @@ namespace TiltBrush
 #endif
         }
 
-        virtual public bool HasHoverInteractions() { return false; }
+        virtual public bool HasHoverInteractions()
+        {
+            return false;
+        }
 
-        virtual public void AssignHoverControllerMaterials(InputManager.ControllerName controller) { }
+        virtual public void AssignHoverControllerMaterials(InputManager.ControllerName controller)
+        {
+        }
 
         virtual public void AssignControllerMaterials(InputManager.ControllerName controller)
         {
@@ -1855,7 +1959,9 @@ namespace TiltBrush
             return WidgetManager.m_Instance.GetHomeXf();
         }
 
-        virtual protected void OnShow() { }
+        virtual protected void OnShow()
+        {
+        }
 
         virtual protected void OnHide()
         {
@@ -1871,7 +1977,9 @@ namespace TiltBrush
             }
         }
 
-        virtual protected void OnTossComplete() { }
+        virtual protected void OnTossComplete()
+        {
+        }
 
         public void InitIntroAnim(TrTransform xfSpawn, TrTransform xfTarget, bool bFaceUser, Quaternion? endForward = null,
                                   bool forceTransform = false, float snapGridSize = 0, float snapAngle = 0)
@@ -1991,7 +2099,9 @@ namespace TiltBrush
         /// GameObject.Destroy imposes a frame of latency before OnDestroy() is sent, so this
         /// is a chance for subclasses to do any immediate cleanup.
         /// The implementation must be tolerant of being called multiple times.
-        virtual public void OnPreDestroy() { }
+        virtual public void OnPreDestroy()
+        {
+        }
 
         virtual protected void OnDestroy()
         {
@@ -1999,7 +2109,9 @@ namespace TiltBrush
             WidgetManager.m_Instance.DestroyWidgetPin(m_Pin);
         }
 
-        virtual protected void OnUpdate() { }
+        virtual protected void OnUpdate()
+        {
+        }
 
         virtual protected void OnUserBeginInteracting()
         {
@@ -2093,14 +2205,22 @@ namespace TiltBrush
         }
 
         // Allows subclasses to do something when a two handed grab is ended.
-        virtual protected void OnUserEndTwoHandGrab() { }
+        virtual protected void OnUserEndTwoHandGrab()
+        {
+        }
 
         /// Returns the allowable range of the absolute value of the size. In other words, if the range is
         /// (1, 3), then allowable values for size are (-3, -1) and (1, 3).
-        virtual public Vector2 GetWidgetSizeRange() { return new Vector2(1e-4f, 1e4f); }
+        virtual public Vector2 GetWidgetSizeRange()
+        {
+            return new Vector2(1e-4f, 1e4f);
+        }
 
         /// Size of the widget, which may be negative if SupportsNegativeSize is true.
-        virtual public float GetSignedWidgetSize() { return 1.0f; }
+        virtual public float GetSignedWidgetSize()
+        {
+            return 1.0f;
+        }
 
         /// Override in derived classes to prevent size changes when custom size should be preserved
         protected virtual bool ShouldPreserveCustomSize()
@@ -2123,19 +2243,31 @@ namespace TiltBrush
         /// This sets the overall size of a widget. For non-uniformly scalable widgets, this will be the
         /// scale along the maximum aspect ratio. The scale may be negative if and only if
         /// SupportsNegativeSize is true.
-        virtual protected void SetWidgetSizeInternal(float fScale) { }
+        virtual protected void SetWidgetSizeInternal(float fScale)
+        {
+        }
 
         // Widgets that should use GPU intersection for activation should override this.
-        virtual public bool HasGPUIntersectionObject() { return false; }
+        virtual public bool HasGPUIntersectionObject()
+        {
+            return false;
+        }
 
         // Widgets that should use GPU intersection for activation should override these and
         // update the GPU object with the layer used for detection.
-        virtual public void SetGPUIntersectionObjectLayer(int layer) { }
-        virtual public void RestoreGPUIntersectionObjectLayer() { }
+        virtual public void SetGPUIntersectionObjectLayer(int layer)
+        {
+        }
+        virtual public void RestoreGPUIntersectionObjectLayer()
+        {
+        }
 
         // Widgets that can be manipulated when we're in the selection tool deselection mode
         // should override this.
-        virtual public bool CanGrabDuringDeselection() { return false; }
+        virtual public bool CanGrabDuringDeselection()
+        {
+            return false;
+        }
 
         /// Makes the object bigger by the specified amount along the specified axis.
         /// Other extents may be affected. For example:
@@ -2145,10 +2277,15 @@ namespace TiltBrush
         /// - Increasing capsule diameter currently affects Extents.y, since the
         ///   radius of the end-spheres is also increased (and the height of the
         ///   cylindrical portion is not decreased to compensate)
-        public virtual void RecordAndApplyScaleToAxis(float deltaScale, Axis axis) { }
+        public virtual void RecordAndApplyScaleToAxis(float deltaScale, Axis axis)
+        {
+        }
 
         // Override for widgets that can't be snapped to home.
-        public virtual bool CanSnapToHome() { return true; }
+        public virtual bool CanSnapToHome()
+        {
+            return true;
+        }
 
         // Override for widgets that need to configure custom layers after selection.
         public virtual void RestoreGameObjectLayer(int layer)

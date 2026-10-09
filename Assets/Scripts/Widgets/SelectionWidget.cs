@@ -1,4 +1,4 @@
-﻿// Copyright 2020 The Tilt Brush Authors
+// Copyright 2020 The Tilt Brush Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -35,6 +35,20 @@ namespace TiltBrush
         private int m_IntersectionFrame;
         private Vector2 m_SizeRange;
 
+        Vector3 m_PlaneLockGrabStartPos_GS;
+        Quaternion m_PlaneLockGrabStartRot_GS;
+        float m_PlaneLockGrabStartSize;
+        Vector3 m_PlaneLockPivot_GS;
+        Vector3 m_PlaneLockNormal_GS;
+        Vector3 m_PlaneLockForward_GS;
+        Vector3 m_PlaneLockUp_GS;
+        Vector3 m_PlaneLockGrabHandPos_GS;
+        bool m_PlaneLockGrabCached;
+        int m_PlaneLockFrameCount;
+        float m_PlaneLockLastAlong;
+        float m_PlaneLockLastSlide;
+        bool m_PlaneLockLastApplied;
+
         protected override bool SnapButtonConflictsWithDuplicate => true;
 
         public override bool AllowDormancy
@@ -47,7 +61,10 @@ namespace TiltBrush
 
         public override float HapticDuration
         {
-            get { return 0.05f; }
+            get
+            {
+                return 0.05f;
+            }
         }
 
         override protected void Awake()
@@ -123,9 +140,20 @@ namespace TiltBrush
 
         override protected void SetWidgetSizeInternal(float fSize)
         {
-            // TODO: is this roundabout scheme necessary? Does the selection widget
-            // really have non-uniform scale?
+            bool scaleAboutPlane = PlaneLockScaleActive()
+                && m_PlaneLockGrabCached
+                && UserTwoHandGrabbing;
             transform.localScale = (transform.localScale / GetSignedWidgetSize()) * fSize;
+            if (scaleAboutPlane)
+            {
+                float ratio = fSize / m_PlaneLockGrabStartSize;
+                if (Mathf.Abs(m_PlaneLockGrabStartSize) < 1e-6f)
+                {
+                    ratio = 1.0f;
+                }
+                transform.position = m_PlaneLockPivot_GS
+                    + ratio * (m_PlaneLockGrabStartPos_GS - m_PlaneLockPivot_GS);
+            }
             if (SelectionTransformed != null)
             {
                 SelectionTransformed(SelectionTransform);
@@ -233,7 +261,16 @@ namespace TiltBrush
             base.OnEndUpdateWithDesiredTransform();
             if (SelectionTransformed != null)
             {
-                SelectionTransformed(SelectionTransform);
+                TrTransform xf = SelectionTransform;
+                if (m_PlaneLockFrameCount == 1)
+                {
+                    Debug.LogError(
+                        "[SelectionWidget.OnEndUpdateWithDesiredTransform] CANVAS selection-box only" +
+                        " xf.pos=" + xf.translation +
+                        " xf.scale=" + xf.scale +
+                        " fired=True");
+                }
+                SelectionTransformed(xf);
             }
         }
 
@@ -334,6 +371,7 @@ namespace TiltBrush
         override protected void OnUserBeginInteracting()
         {
             base.OnUserBeginInteracting();
+            CachePlaneLockGrab();
 
             // Use pin visuals for preventing movement.
             WidgetManager.m_Instance.DestroyWidgetPin(m_Pin);
@@ -349,6 +387,240 @@ namespace TiltBrush
                 m_Pin.gameObject.SetActive(true);
                 m_Pin.WobblePin(m_InteractingController);
             }
+        }
+
+
+        void CachePlaneLockGrab()
+        {
+            m_PlaneLockGrabStartPos_GS = transform.position;
+            m_PlaneLockGrabStartRot_GS = transform.rotation;
+            m_PlaneLockGrabStartSize = GetSignedWidgetSize();
+            m_PlaneLockGrabHandPos_GS = m_PlaneLockGrabStartPos_GS;
+            if (InputManager.m_Instance != null)
+            {
+                int hand = (int)m_InteractingController;
+                if (hand >= 0 && hand < InputManager.Controllers.Length
+                    && InputManager.Controllers[hand] != null
+                    && InputManager.Controllers[hand].Transform != null)
+                {
+                    m_PlaneLockGrabHandPos_GS =
+                        InputManager.Controllers[hand].Transform.position;
+                }
+            }
+            m_PlaneLockGrabCached = false;
+            m_PlaneLockNormal_GS = Vector3.right;
+            m_PlaneLockForward_GS = Vector3.forward;
+            m_PlaneLockUp_GS = Vector3.up;
+            m_PlaneLockPivot_GS = m_PlaneLockGrabStartPos_GS;
+            if (PointerManager.m_Instance == null
+                || PointerManager.m_Instance.SymmetryWidget == null)
+            {
+                return;
+            }
+            SymmetryWidget mirror = PointerManager.m_Instance.SymmetryWidget;
+            Plane plane = mirror.ReflectionPlane;
+            m_PlaneLockNormal_GS = plane.normal.normalized;
+            m_PlaneLockForward_GS = Vector3.ProjectOnPlane(
+                mirror.transform.forward, m_PlaneLockNormal_GS);
+            if (m_PlaneLockForward_GS.sqrMagnitude < 1e-8f)
+            {
+                m_PlaneLockForward_GS = Vector3.ProjectOnPlane(
+                    Vector3.forward, m_PlaneLockNormal_GS);
+            }
+            if (m_PlaneLockForward_GS.sqrMagnitude < 1e-8f)
+            {
+                m_PlaneLockForward_GS = Vector3.up;
+            }
+            m_PlaneLockForward_GS.Normalize();
+            m_PlaneLockUp_GS = Vector3.ProjectOnPlane(
+                mirror.transform.up, m_PlaneLockNormal_GS);
+            if (m_PlaneLockUp_GS.sqrMagnitude < 1e-8f)
+            {
+                m_PlaneLockUp_GS = Vector3.ProjectOnPlane(
+                    Vector3.up, m_PlaneLockNormal_GS);
+            }
+            if (m_PlaneLockUp_GS.sqrMagnitude < 1e-8f)
+            {
+                m_PlaneLockUp_GS = Vector3.forward;
+            }
+            m_PlaneLockUp_GS.Normalize();
+            m_PlaneLockPivot_GS = plane.ClosestPointOnPlane(m_PlaneLockGrabStartPos_GS);
+            m_PlaneLockGrabCached = true;
+            int strokes = 0;
+            int widgets = 0;
+            if (SelectionManager.m_Instance != null)
+            {
+                strokes = SelectionManager.m_Instance.SelectedStrokes.Count();
+                widgets = SelectionManager.m_Instance.SelectedWidgets.Count();
+            }
+            bool live = mirror.IsLiveSinglePlaneActive();
+            bool bothSides = false;
+            if (SelectionManager.m_Instance != null && SelectionManager.m_Instance.HasSelection)
+            {
+                const float kEps = 0.01f;
+                float eps = kEps * App.METERS_TO_UNITS;
+                bothSides = SelectionManager.m_Instance.SelectionHasBothSidesOfPlane(
+                    mirror.ReflectionPlane, eps);
+            }
+            m_PlaneLockFrameCount = 0;
+            m_PlaneLockLastAlong = 0.0f;
+            m_PlaneLockLastSlide = 0.0f;
+            m_PlaneLockLastApplied = false;
+            Debug.LogError(
+                "[SelectionWidget.CachePlaneLockGrab] GRAB selection-box only" +
+                " button=" + mirror.PlaneLockActive +
+                " tunnel=" + mirror.TunnelLockActive +
+                " liveMirror=" + live +
+                " bothSides=" + bothSides +
+                " scaleActive=" + PlaneLockScaleActive() +
+                " moveActive=" + PlaneLockMoveActive() +
+                " twoHand=" + UserTwoHandGrabbing +
+                " strokes=" + strokes +
+                " widgets=" + widgets +
+                " n=" + m_PlaneLockNormal_GS +
+                " pos=" + m_PlaneLockGrabStartPos_GS);
+        }
+
+        bool PlaneLockMoveActive()
+        {
+            if (PointerManager.m_Instance == null
+                || PointerManager.m_Instance.SymmetryWidget == null)
+            {
+                return false;
+            }
+            if (SelectionManager.m_Instance == null
+                || !SelectionManager.m_Instance.HasSelection)
+            {
+                return false;
+            }
+            SymmetryWidget mirror = PointerManager.m_Instance.SymmetryWidget;
+            return mirror.TunnelLockActive || mirror.PlaneLockActive;
+        }
+
+        bool PlaneLockScaleActive()
+        {
+            return PlaneLockMoveActive();
+        }
+
+        override protected TrTransform GetDesiredTransform(TrTransform xf_GS)
+        {
+            TrTransform outXf = base.GetDesiredTransform(xf_GS);
+            bool scaleLock = PlaneLockScaleActive();
+            bool moveLock = PlaneLockMoveActive();
+            if (!scaleLock && !moveLock)
+            {
+                return outXf;
+            }
+            if (!m_PlaneLockGrabCached)
+            {
+                CachePlaneLockGrab();
+            }
+            Vector3 n = m_PlaneLockNormal_GS;
+            if (n.sqrMagnitude < 1e-8f)
+            {
+                n = Vector3.right;
+            }
+            n.Normalize();
+            if (moveLock || scaleLock)
+            {
+                Vector3 handNow = m_PlaneLockGrabHandPos_GS;
+                if (InputManager.m_Instance != null)
+                {
+                    int hand = (int)m_InteractingController;
+                    if (hand >= 0 && hand < InputManager.Controllers.Length
+                        && InputManager.Controllers[hand] != null
+                        && InputManager.Controllers[hand].Transform != null)
+                    {
+                        handNow = InputManager.Controllers[hand].Transform.position;
+                    }
+                }
+                Vector3 handDelta = handNow - m_PlaneLockGrabHandPos_GS;
+                float along = Vector3.Dot(handDelta, n);
+                SymmetryWidget mirror = PointerManager.m_Instance != null
+                    ? PointerManager.m_Instance.SymmetryWidget
+                    : null;
+                bool tunnel = mirror != null && mirror.TunnelLockActive;
+                bool plane = mirror != null && mirror.PlaneLockActive;
+                Quaternion sceneRot = App.Scene.Pose.rotation;
+                Vector3 sceneX = sceneRot * Vector3.right;
+                Vector3 sceneY = sceneRot * Vector3.up;
+                Vector3 sceneZ = sceneRot * Vector3.forward;
+                Vector3 slide = Vector3.zero;
+                SymmetryWidget.MirrorSlideDefault axis = mirror != null
+                    ? mirror.CurrentMirrorSlideDefault
+                    : SymmetryWidget.MirrorSlideDefault.None;
+                if (axis == SymmetryWidget.MirrorSlideDefault.X)
+                {
+                    slide = sceneX * Vector3.Dot(handDelta, sceneX);
+                }
+                else if (axis == SymmetryWidget.MirrorSlideDefault.Y)
+                {
+                    slide = sceneY * Vector3.Dot(handDelta, sceneY);
+                }
+                else if (axis == SymmetryWidget.MirrorSlideDefault.Z)
+                {
+                    slide = sceneZ * Vector3.Dot(handDelta, sceneZ);
+                }
+                else if (axis == SymmetryWidget.MirrorSlideDefault.All)
+                {
+                    slide = Vector3.zero;
+                }
+                else if (tunnel && !plane)
+                {
+                    slide = sceneZ * Vector3.Dot(handDelta, sceneZ);
+                }
+                else if (plane && !tunnel)
+                {
+                    slide = sceneY * Vector3.Dot(handDelta, sceneY);
+                }
+                else
+                {
+                    slide = sceneY * Vector3.Dot(handDelta, sceneY)
+                        + sceneZ * Vector3.Dot(handDelta, sceneZ);
+                }
+                outXf.translation = m_PlaneLockGrabStartPos_GS + slide;
+                outXf.rotation = m_PlaneLockGrabStartRot_GS;
+                m_PlaneLockLastAlong = along;
+                m_PlaneLockLastSlide = slide.magnitude;
+                m_PlaneLockLastApplied = true;
+                m_PlaneLockFrameCount++;
+                if (m_PlaneLockFrameCount == 1)
+                {
+                    Debug.LogError(
+                        "[SelectionWidget.GetDesiredTransform] APPLY selection-box only" +
+                        " axis=" + axis +
+                        " tunnel=" + tunnel +
+                        " plane=" + plane +
+                        " slide=" + slide.magnitude.ToString("F3") +
+                        " start=" + m_PlaneLockGrabStartPos_GS +
+                        " out=" + outXf.translation);
+                }
+            }
+            return outXf;
+        }
+
+        override protected void OnUserBeginTwoHandGrab(
+            Vector3 primaryHand, Vector3 secondaryHand, bool secondaryHandInObject)
+        {
+            base.OnUserBeginTwoHandGrab(primaryHand, secondaryHand, secondaryHandInObject);
+            CachePlaneLockGrab();
+        }
+
+        override protected void OnUserEndInteracting()
+        {
+            TrTransform xf = SelectionTransform;
+            Debug.LogError(
+                "[SelectionWidget.OnUserEndInteracting] END selection-box only" +
+                " applied=" + m_PlaneLockLastApplied +
+                " frames=" + m_PlaneLockFrameCount +
+                " along=" + m_PlaneLockLastAlong.ToString("F3") +
+                " slide=" + m_PlaneLockLastSlide.ToString("F3") +
+                " start=" + m_PlaneLockGrabStartPos_GS +
+                " end=" + transform.position +
+                " rotDeg=" + Quaternion.Angle(m_PlaneLockGrabStartRot_GS, transform.rotation).ToString("F1") +
+                " canvas.pos=" + xf.translation +
+                " canvas.scale=" + xf.scale);
+            base.OnUserEndInteracting();
         }
 
         protected override IEnumerable<StencilWidget> GetStencilsToIgnore()

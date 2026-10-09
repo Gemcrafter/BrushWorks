@@ -1,4 +1,4 @@
-﻿// Copyright 2020 The Tilt Brush Authors
+// Copyright 2020 The Tilt Brush Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -139,6 +139,14 @@ namespace TiltBrush
 
             bool hasAuthor = !string.IsNullOrEmpty(App.UserConfig.User.Author);
 
+            MirrorSaveSlotEntry[] mirrorSaveSlots = null;
+            if (PointerManager.m_Instance != null &&
+                PointerManager.m_Instance.SymmetryWidget != null)
+            {
+                mirrorSaveSlots =
+                    PointerManager.m_Instance.SymmetryWidget.ExportMirrorSaveSlots();
+            }
+
             return new SketchMetadata
             {
                 //      BrushIndex = brushGuids.ToArray(), // Need to do this on actual save!
@@ -155,6 +163,7 @@ namespace TiltBrush
                 Portals = MetadataUtils.GetTiltPortals(m_GroupIdMapping),
                 GaussianCaptures = MetadataUtils.GetTiltGaussianCaptures(m_GroupIdMapping),
                 Mirror = PointerManager.m_Instance.SymmetryWidgetToMirror(),
+                MirrorSaveSlots = mirrorSaveSlots,
                 GuideIndex = MetadataUtils.GetGuideIndex(m_GroupIdMapping),
                 Palette = CustomColorPaletteStorage.m_Instance.GetPaletteForSaving(),
                 Lights = LightsControlScript.m_Instance.CustomLights,

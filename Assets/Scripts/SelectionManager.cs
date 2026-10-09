@@ -1,4 +1,4 @@
-﻿// Copyright 2020 The Tilt Brush Authors
+// Copyright 2020 The Tilt Brush Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -69,6 +69,11 @@ namespace TiltBrush
         private HashSet<GrabWidget> m_SelectedWidgetsCopyWhileGrabbingGroup;
 
         private bool m_IsAnimatingTossFromGrabbingGroup;
+        private bool m_LastBothSidesLogged;
+        private bool m_HasLastBothSidesLogged;
+        private Vector3 m_LastLoggedSelectionXfPos;
+        private bool m_HasLoggedSelectionXfPos;
+        private int m_LastSelectionXfLogFrame;
         private bool m_IsGrabbingGroup;
         private BaseTool.ToolType m_ToolTypeBeforeGrabbingGroup;
 
@@ -344,6 +349,19 @@ namespace TiltBrush
             set
             {
                 App.Scene.SelectionCanvas.Pose = App.ActiveCanvas.Pose * value;
+                // Throttle: one line per 30 frames, and only if the pose moved.
+                if (Time.frameCount - m_LastSelectionXfLogFrame >= 30
+                    && (!m_HasLoggedSelectionXfPos
+                        || (value.translation - m_LastLoggedSelectionXfPos).sqrMagnitude > 0.01f))
+                {
+                    m_HasLoggedSelectionXfPos = true;
+                    m_LastLoggedSelectionXfPos = value.translation;
+                    m_LastSelectionXfLogFrame = Time.frameCount;
+                    Debug.LogError(
+                        "[SelectionManager.SelectionTransform] WRITE canvas.pos=" +
+                        value.translation +
+                        " scale=" + value.scale);
+                }
             }
         }
 
@@ -769,6 +787,8 @@ namespace TiltBrush
 
         public void ClearActiveSelection()
         {
+            Debug.LogError(
+                "[SelectionManager.ClearActiveSelection] has=" + HasSelection);
             // Make sure we don't have a selection active.
             if (HasSelection)
             {
@@ -1035,22 +1055,45 @@ namespace TiltBrush
                     unselectedWidgets, selectedWidgetsOnCanvas));
         }
 
+        public void InvertStrokeSelection(CanvasScript canvas)
+        {
+            List<Stroke> unselectedStrokes =
+                SketchMemoryScript.m_Instance.GetAllUnselectedActiveStrokes(canvas);
+
+            SketchMemoryScript.m_Instance.PerformAndRecordCommand(
+                new InvertSelectionCommand(unselectedStrokes, m_SelectedStrokes,
+                    widgetsOn: null, widgetsOff: null));
+        }
+
         public void FlipSelection()
         {
-            // Flip the selection.
+            // Flip the selection in place across the live widget plane.
+            // Does not run when the mirror is off. One plane, not every slot.
             TrTransform selectionFromWorldSpace =
                 TrTransform.FromTransform(App.Scene.SelectionCanvas.transform).inverse;
 
-            Plane flipPlaneInSelectionSpace = new Plane(
-                selectionFromWorldSpace * m_SelectionWidget.transform.position,
-                selectionFromWorldSpace * ViewpointScript.Head.position,
-                selectionFromWorldSpace * (ViewpointScript.Head.position + Vector3.up));
-#if false
-    // useful for precise testing
-    if (PointerManager.m_Instance.SymmetryPlane_RS is Plane plane_RS) {
-      flipPlaneInSelectionSpace = App.Scene.SelectionCanvas.Pose.inverse * plane_RS;
-    }
-#endif
+            PointerManager pm = PointerManager.m_Instance;
+            bool mirrorOn = pm != null
+                && pm.SymmetryWidget != null
+                && pm.CurrentSymmetryMode != PointerManager.SymmetryMode.None;
+            if (!mirrorOn)
+            {
+                Debug.LogError(
+                    "[SelectionManager.FlipSelection] skip mirrorOff mode=" +
+                    (pm != null ? pm.CurrentSymmetryMode.ToString() : "none"));
+                return;
+            }
+
+            Plane plane_GS = pm.SymmetryWidget.ReflectionPlane;
+            Vector3 normal_CS = selectionFromWorldSpace.rotation * plane_GS.normal;
+            Vector3 point_CS = selectionFromWorldSpace * plane_GS.ClosestPointOnPlane(
+                pm.SymmetryWidget.transform.position);
+            Plane flipPlaneInSelectionSpace = new Plane(normal_CS.normalized, point_CS);
+
+            Debug.LogError(
+                "[SelectionManager.FlipSelection] plane=mirror n=" +
+                flipPlaneInSelectionSpace.normal +
+                " mode=" + pm.CurrentSymmetryMode);
 
             SketchMemoryScript.m_Instance.PerformAndRecordCommand(
                 new FlipSelectionCommand(m_SelectedStrokes, m_SelectedWidgets, flipPlaneInSelectionSpace));
@@ -1071,6 +1114,18 @@ namespace TiltBrush
                 new SelectCommand(unselectedStrokes, unselectedWidgets,
                     SelectionManager.m_Instance.SelectionTransform,
                     deselect: false, initial: false));
+        }
+
+        public void SelectAllStrokes(CanvasScript canvas)
+        {
+            List<Stroke> unselectedStrokes =
+                SketchMemoryScript.m_Instance.GetAllUnselectedActiveStrokes(canvas);
+
+            SketchMemoryScript.m_Instance.PerformAndRecordCommand(
+                new SelectCommand(unselectedStrokes, widgets: null,
+                    SelectionManager.m_Instance.SelectionTransform,
+                    deselect: false, initial: false,
+                    includeGroupedWidgets: false));
         }
 
         /// Groups all the selected strokes into a single new group unless they are already in a single
@@ -1376,6 +1431,81 @@ namespace TiltBrush
             )
             .ToList();
 
+        public bool SelectionHasBothSidesOfPlane(Plane plane_GS, float epsilon)
+        {
+            bool pos = false;
+            bool neg = false;
+            if (m_SelectedStrokes != null)
+            {
+                foreach (Stroke stroke in m_SelectedStrokes)
+                {
+                    if (stroke == null || stroke.m_ControlPoints == null)
+                    {
+                        continue;
+                    }
+                    CanvasScript canvas = stroke.Canvas;
+                    if (canvas == null)
+                    {
+                        continue;
+                    }
+                    for (int i = 0; i < stroke.m_ControlPoints.Length; ++i)
+                    {
+                        Vector3 world = canvas.transform.TransformPoint(stroke.m_ControlPoints[i].m_Pos);
+                        float d = plane_GS.GetDistanceToPoint(world);
+                        if (d > epsilon)
+                        {
+                            pos = true;
+                        }
+                        else if (d < -epsilon)
+                        {
+                            neg = true;
+                        }
+                        if (pos && neg)
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+            if (m_SelectedWidgets != null)
+            {
+                foreach (GrabWidget widget in m_SelectedWidgets)
+                {
+                    if (widget == null)
+                    {
+                        continue;
+                    }
+                    float d = plane_GS.GetDistanceToPoint(widget.transform.position);
+                    if (d > epsilon)
+                    {
+                        pos = true;
+                    }
+                    else if (d < -epsilon)
+                    {
+                        neg = true;
+                    }
+                    if (pos && neg)
+                    {
+                        return true;
+                    }
+                }
+            }
+            bool result = pos && neg;
+            if (!m_HasLastBothSidesLogged || result != m_LastBothSidesLogged)
+            {
+                m_HasLastBothSidesLogged = true;
+                m_LastBothSidesLogged = result;
+                int nStroke = m_SelectedStrokes != null ? m_SelectedStrokes.Count : 0;
+                int nWidget = m_SelectedWidgets != null ? m_SelectedWidgets.Count : 0;
+                Debug.LogError(
+                    "[SelectionManager.SelectionHasBothSidesOfPlane] bothSides=" + result +
+                    " strokes=" + nStroke +
+                    " widgets=" + nWidget);
+            }
+            return result;
+        }
+
     }
+
 
 } // namespace TiltBrush

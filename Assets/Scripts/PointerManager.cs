@@ -1,4 +1,4 @@
-﻿// Copyright 2020 The Tilt Brush Authors
+// Copyright 2020 The Tilt Brush Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -93,7 +93,9 @@ namespace TiltBrush
 
         private static readonly ColorShiftComponentSetting m_defaultColorShiftComponentSetting = new()
         {
-            mode = WaveGenerator.Mode.SineWave, amp = 0, freq = 1
+            mode = WaveGenerator.Mode.SineWave,
+            amp = 0,
+            freq = 1
         };
 
         [NonSerialized] public ColorShiftComponentSetting m_SymmetryColorShiftSettingHue = m_defaultColorShiftComponentSetting;
@@ -162,6 +164,9 @@ namespace TiltBrush
 
         [NonSerialized] public TrTransform m_SymmetryTransformEach = TrTransform.identity;
         [NonSerialized] public bool m_SymmetryTransformEachAfter;
+        Vector3 m_LastLoggedMultiMirrorCenterPos;
+        Vector3 m_LastLoggedMultiMirrorCenterEuler;
+        bool m_LoggedMultiMirrorCenter;
 
         // ---- Private member data
 
@@ -229,10 +234,22 @@ namespace TiltBrush
         private SymmetryMode m_CurrentSymmetryMode;
         private SymmetryWidget m_SymmetryWidgetScript;
         private bool m_UseSymmetryWidget = false;
-        public Color m_lastChosenColor { get; private set; }
-        public Vector3 colorJitter { get; set; }
-        public float sizeJitter { get; set; }
-        public float positionJitter { get; set; }
+        public Color m_lastChosenColor
+        {
+            get; private set;
+        }
+        public Vector3 colorJitter
+        {
+            get; set;
+        }
+        public float sizeJitter
+        {
+            get; set;
+        }
+        public float positionJitter
+        {
+            get; set;
+        }
 
         [NonSerialized] public bool RecolorOn = true;
         [NonSerialized] public bool RebrushOn = false;
@@ -255,8 +272,14 @@ namespace TiltBrush
 
         public event Action<TiltBrush.BrushDescriptor> OnMainPointerBrushChange
         {
-            add { m_MainPointerData.m_Script.OnBrushChange += value; }
-            remove { m_MainPointerData.m_Script.OnBrushChange -= value; }
+            add
+            {
+                m_MainPointerData.m_Script.OnBrushChange += value;
+            }
+            remove
+            {
+                m_MainPointerData.m_Script.OnBrushChange -= value;
+            }
         }
 
         public event Action OnPointerColorChange = delegate { };
@@ -265,7 +288,10 @@ namespace TiltBrush
 
         public PointerScript MainPointer
         {
-            get { return m_MainPointerData.m_Script; }
+            get
+            {
+                return m_MainPointerData.m_Script;
+            }
         }
 
         /// Only call this if you don't want to update m_lastChosenColor
@@ -280,7 +306,10 @@ namespace TiltBrush
 
         public Color PointerColor
         {
-            get { return m_MainPointerData.m_Script.GetCurrentColor(); }
+            get
+            {
+                return m_MainPointerData.m_Script.GetCurrentColor();
+            }
             set
             {
                 ChangeAllPointerColorsDirectly(value);
@@ -312,16 +341,34 @@ namespace TiltBrush
         }
 
         /// The number of pointers available with GetTransientPointer()
-        public int NumTransientPointers { get { return m_Pointers.Length - NumUserPointers; } }
+        public int NumTransientPointers
+        {
+            get
+            {
+                return m_Pointers.Length - NumUserPointers;
+            }
+        }
 
         /// Number of pointers reserved for user (including symmetry)
         /// TODO: handle more intelligently.  Depends on user's access to e.g. 4-way symmetry.
-        private int NumUserPointers { get { return m_NumActivePointers; } }
+        private int NumUserPointers
+        {
+            get
+            {
+                return m_NumActivePointers;
+            }
+        }
 
         public SymmetryMode CurrentSymmetryMode
         {
-            set { SetSymmetryMode(value); }
-            get { return m_CurrentSymmetryMode; }
+            set
+            {
+                SetSymmetryMode(value);
+            }
+            get
+            {
+                return m_CurrentSymmetryMode;
+            }
         }
 
         /// Returns null if the mirror is not active
@@ -331,7 +378,10 @@ namespace TiltBrush
 
         public bool SymmetryModeEnabled
         {
-            get { return m_CurrentSymmetryMode != SymmetryMode.None; }
+            get
+            {
+                return m_CurrentSymmetryMode != SymmetryMode.None;
+            }
         }
 
         public void SymmetryWidgetFromMirror(Mirror data)
@@ -346,23 +396,38 @@ namespace TiltBrush
 
         public StraightEdgeGuideScript StraightEdgeGuide
         {
-            get { return m_StraightEdgeGuide; }
+            get
+            {
+                return m_StraightEdgeGuide;
+            }
         }
 
         public bool StraightEdgeModeEnabled
         {
-            get { return m_StraightEdgeEnabled; }
-            set { m_StraightEdgeEnabled = value; }
+            get
+            {
+                return m_StraightEdgeEnabled;
+            }
+            set
+            {
+                m_StraightEdgeEnabled = value;
+            }
         }
 
         public bool StraightEdgeGuideIsLine
         {
-            get { return StraightEdgeGuide.CurrentShape == StraightEdgeGuideScript.Shape.Line; }
+            get
+            {
+                return StraightEdgeGuide.CurrentShape == StraightEdgeGuideScript.Shape.Line;
+            }
         }
 
         public float FreePaintPointerAngle
         {
-            get { return m_FreePaintPointerAngle; }
+            get
+            {
+                return m_FreePaintPointerAngle;
+            }
             set
             {
                 m_FreePaintPointerAngle = value;
@@ -376,14 +441,26 @@ namespace TiltBrush
 
         public List<Color> SymmetryPointerColors
         {
-            get { return m_SymmetryPointerColors; }
-            set { m_SymmetryPointerColors = value; }
+            get
+            {
+                return m_SymmetryPointerColors;
+            }
+            set
+            {
+                m_SymmetryPointerColors = value;
+            }
         }
 
         public List<BrushDescriptor> SymmetryPointerBrushes
         {
-            get { return m_SymmetryPointerBrushes; }
-            set { m_SymmetryPointerBrushes = value; }
+            get
+            {
+                return m_SymmetryPointerBrushes;
+            }
+            set
+            {
+                m_SymmetryPointerBrushes = value;
+            }
         }
 
         public List<Color32?> SymmetryPointerColorOverrides
@@ -528,6 +605,9 @@ namespace TiltBrush
 
         public void UseSymmetryWidget(bool bUse)
         {
+            Debug.LogError(
+                "[PointerManager.UseSymmetryWidget] use=" + bUse +
+                " mode=" + m_CurrentSymmetryMode);
             m_UseSymmetryWidget = bUse;
         }
 
@@ -1547,6 +1627,20 @@ namespace TiltBrush
 
         public void SetSymmetryMode(SymmetryMode mode, bool recordCommand = true)
         {
+            string caller = "none";
+            var frame = new System.Diagnostics.StackTrace(1, false).GetFrame(0);
+            if (frame != null && frame.GetMethod() != null)
+            {
+                var method = frame.GetMethod();
+                caller = (method.DeclaringType != null ? method.DeclaringType.Name : "?") +
+                    "." + method.Name;
+            }
+            Debug.LogError(
+                "[PointerManager.SetSymmetryMode] from=" + m_CurrentSymmetryMode +
+                " to=" + mode +
+                " record=" + recordCommand +
+                " useWidget=" + m_UseSymmetryWidget +
+                " caller=" + caller);
             // Early out if we're already in the requested mode (but allow None for initial hide of widget)
             if (mode != SymmetryMode.None && m_CurrentSymmetryMode == mode) return;
 
@@ -1595,10 +1689,21 @@ namespace TiltBrush
             m_CurrentSymmetryMode = mode;
             m_SymmetryWidgetScript.SetMode(m_CurrentSymmetryMode);
             m_SymmetryWidgetScript.Show(m_UseSymmetryWidget && SymmetryModeEnabled);
+            if (mode == SymmetryMode.MultiMirror)
+            {
+                m_SymmetryWidgetScript.ApplyMultiMirrorTunnelDefault();
+            }
             if (recordCommand)
             {
                 SketchMemoryScript.m_Instance.RecordCommand(
                     new SymmetryWidgetVisibleCommand(mode, previousMode));
+            }
+
+            // User-initiated mode change only. Undo/redo/Start pass recordCommand=false
+            // and must not close the settings panel as a side effect off the stack.
+            if (recordCommand && mode != SymmetryMode.MultiMirror)
+            {
+                MultiMirrorSettingsPanel.CloseAllOpenInstances();
             }
 
         }
@@ -1661,6 +1766,8 @@ namespace TiltBrush
 
                 case SymmetryMode.MultiMirror:
                     {
+                        // Same rule as UpdateSymmetryPointerTransforms:
+                        // copies live in the live widget frame.
                         (TrTransform, TrTransform) trAndFix;
                         TrTransform tr;
                         {
@@ -1669,11 +1776,11 @@ namespace TiltBrush
                                     MainPointer.transform : m_SymmetryWidget
                             );
 
-                            // convert from widget-local coords to world coords
                             trAndFix = TrFromMatrixWithFixedReflections(m_CustomMirrorMatrices[child]);
-                            tr = trAndFix.Item1.TransformBy(xfCenter);
+                            tr = xfCenter * trAndFix.Item1 * xfCenter.inverse;
+                            LogMultiMirrorCenterIfChanged(xfCenter);
                         }
-                        return tr * xfMain * trAndFix.Item1;
+                        return tr * xfMain * trAndFix.Item2;
                     }
                 case SymmetryMode.ScriptedSymmetryMode:
                     {
@@ -1729,8 +1836,13 @@ namespace TiltBrush
                 case CustomSymmetryType.Point:
                 case CustomSymmetryType.Polyhedra:
                 default:
-                    var pointSym = new PointSymmetry(m_PointSymmetryFamily, m_PointSymmetryOrder, 0.1f);
+                    // 0 keeps the symmetry plane on the widget origin, same point as the regular mirror.
+                    var pointSym = new PointSymmetry(m_PointSymmetryFamily, m_PointSymmetryOrder, 0f);
                     m_CustomMirrorMatrices = pointSym.matrices;
+                    Debug.LogError(
+                        "[PointerManager.CalculateMirrorMatrices] point planeOffset=0 family=" +
+                        m_PointSymmetryFamily +
+                        " order=" + m_PointSymmetryOrder);
                     break;
             }
 
@@ -1786,6 +1898,32 @@ namespace TiltBrush
             }
         }
 
+        void LogMultiMirrorCenterIfChanged(TrTransform xfCenter)
+        {
+            Vector3 pos = xfCenter.translation;
+            Vector3 euler = xfCenter.rotation.eulerAngles;
+            if (m_LoggedMultiMirrorCenter
+                && (pos - m_LastLoggedMultiMirrorCenterPos).sqrMagnitude < 1e-4f
+                && (euler - m_LastLoggedMultiMirrorCenterEuler).sqrMagnitude < 0.25f)
+            {
+                return;
+            }
+
+            m_LoggedMultiMirrorCenter = true;
+            m_LastLoggedMultiMirrorCenterPos = pos;
+            m_LastLoggedMultiMirrorCenterEuler = euler;
+            string align = m_SymmetryWidgetScript != null
+                ? m_SymmetryWidgetScript.DescribeMirrorAlignment(pos)
+                : "noWidget";
+            Debug.LogError(
+                "[PointerManager.LogMultiMirrorCenterIfChanged] MULTIMIRROR_FRAME pos=" + pos +
+                " euler=" + euler +
+                " lockedToController=" + m_SymmetryLockedToController +
+                " family=" + m_PointSymmetryFamily +
+                " order=" + m_PointSymmetryOrder +
+                " " + align);
+        }
+
         void UpdateSymmetryPointerTransforms()
         {
             switch (m_CurrentSymmetryMode)
@@ -1819,10 +1957,11 @@ namespace TiltBrush
                             MainPointer.transform : m_SymmetryWidget
                         );
 
+                        LogMultiMirrorCenterIfChanged(xfCenter);
                         for (int i = 0; i < m_CustomMirrorMatrices.Count; i++)
                         {
                             (TrTransform, TrTransform) trAndFix = TrFromMatrixWithFixedReflections(m_CustomMirrorMatrices[i]);
-                            tr = xfCenter * trAndFix.Item1 * xfCenter.inverse; // convert from widget-local coords to world coords
+                            tr = xfCenter * trAndFix.Item1 * xfCenter.inverse;
                             var tmp = tr * pointer0 * trAndFix.Item2; // Work around 2018.3.x Mono parse bug
                             tmp.ToTransform(m_Pointers[i].m_Script.transform);
                             float scaledSize = m_Pointers[0].m_Script.BrushSize01 * Mathf.Abs(m_CustomMirrorMatrices[i].lossyScale.x);
@@ -2384,4 +2523,5 @@ namespace TiltBrush
             }
         }
     }
+
 } // namespace TiltBrush
