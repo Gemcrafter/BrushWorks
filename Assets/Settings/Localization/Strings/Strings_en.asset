@@ -3985,6 +3985,26 @@ MonoBehaviour:
     m_Localized: Captures all widgets and also the current camera path if visible
     m_Metadata:
       m_Items: []
+  - m_Id: 533889788236099584
+    m_Localized: DeepSpace
+    m_Metadata:
+      m_Items: []
+  - m_Id: 533892614702067712
+    m_Localized: SnowField
+    m_Metadata:
+      m_Items: []
+  - m_Id: 533885853169446912
+    m_Localized: MidnightBlack
+    m_Metadata:
+      m_Items: []
+  - m_Id: 538167935605501952
+    m_Localized: VideoBlack
+    m_Metadata:
+      m_Items: []
+  - m_Id: 538168799527268352
+    m_Localized: VideoBlackSoft
+    m_Metadata:
+      m_Items: []
   references:
     version: 2
     RefIds: []

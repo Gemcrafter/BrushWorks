@@ -75,6 +75,11 @@ MonoBehaviour:
   - {fileID: 11400000, guid: c1b260b015c6b0a479c50dee029cc5bc, type: 2}
   - {fileID: 11400000, guid: a2472d544dd1bfd4c8f3288f9f7ee108, type: 2}
   - {fileID: 11400000, guid: b42b208b245c1d34fabaf181763cd256, type: 2}
+  - {fileID: 11400000, guid: 870e79eff4c443944a0d3a274d832d68, type: 2}
+  - {fileID: 11400000, guid: ab0ed9b864008e14eb6da76c5ada6df7, type: 2}
+  - {fileID: 11400000, guid: 33db913313425f84a816f810a01ba52b, type: 2}
+  - {fileID: 11400000, guid: 3c581ecbbdb1b1e479d859d83d7c119f, type: 2}
+  - {fileID: 11400000, guid: 90008d79a02b2b44e91b42efa28ddaa1, type: 2}
   Locales:
   - {fileID: 11400000, guid: 35f3779472064f74bafddfc140d73eb6, type: 2}
   - {fileID: 11400000, guid: 24f69ae89af7fd24fb05a3798905dc72, type: 2}
