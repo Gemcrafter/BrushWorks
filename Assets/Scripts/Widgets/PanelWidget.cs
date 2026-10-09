@@ -204,6 +204,7 @@ namespace TiltBrush
             base.OnUserEndInteracting();
             PanelSibling.WidgetSiblingEndInteraction();
             PanelManager.m_Instance.RefreshConfiguredFlag();
+            AdvancedLaunchPanel.LogReleasedLaunchPanel(PanelSibling);
         }
 
         override public void RegisterHighlight()
