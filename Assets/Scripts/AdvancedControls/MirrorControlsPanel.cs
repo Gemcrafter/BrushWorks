@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+using System.Collections;
 using UnityEngine;
 
 namespace TiltBrush
@@ -25,6 +26,9 @@ namespace TiltBrush
         [Header("Mirror panel tints")]
         [Tooltip("Occupied slot that is not current, not dest/To, and axis-aligned.")]
         [SerializeField] Color m_ActiveTint = new Color(0f, 102f / 255f, 0f, 1f);
+        [Header("Ring lock tints")]
+        [Tooltip("Shared on-color for RingTangentLock and RingPlaneLock.")]
+        [SerializeField] Color m_RingLockTint = new Color(0f, 102f / 255f, 0f, 1f);
         [Tooltip("Empty slot, or a mode button that is off.")]
         [SerializeField] Color m_InactiveTint = new Color(115f / 255f, 115f / 255f, 115f / 255f, 1f);
         [Tooltip("Occupied slot whose saved rotation is not one of the four home orientations.")]
@@ -33,6 +37,16 @@ namespace TiltBrush
         [SerializeField] Color m_CurrentSlotTint = new Color(5f / 255f, 144f / 255f, 250f / 255f, 1f);
         [Tooltip("Hyperspace To while Hyperspace is on. Jump dest while Hyperspace is off and dest is not the live pose.")]
         [SerializeField] Color m_MoveToMirrorToTint = new Color(1f, 200f / 255f, 0f, 1f);
+        [Tooltip("ArchitectLineMode button. Separate from the target tint.")]
+        [SerializeField] Color m_ArchitectLineModeTint = new Color(1f, 0f, 197f / 255f, 1f);
+        [Tooltip("Architectural target button. Guide uses the widget color.")]
+        [SerializeField] Color m_ArchitecturalTargetTint = new Color(1f, 0f, 197f / 255f, 1f);
+        [Tooltip("ArchitecturalMultiTarget button and selected slots. Not the active glass.")]
+        [SerializeField] Color m_ArchitecturalMultiTargetTint = new Color(1f, 0f, 197f / 255f, 1f);
+        [Tooltip("ArchitecturalConnectAll button. One shot. Not the active glass.")]
+        [SerializeField] Color m_ArchitecturalConnectAllTint = new Color(1f, 0f, 197f / 255f, 1f);
+        float m_AxisFlashUntil;
+        string m_AxisFlashName;
 
         Color MirrorControlsMoveToMirrorToTint
         {
@@ -91,12 +105,13 @@ namespace TiltBrush
             RefreshMirrorControlsPanelTints();
             RefreshAxisLockButtonDescriptions();
             RefreshOrientationButtonDescriptions();
-            RefreshMirrorSaveSlotTints();
+            RefreshAllMirrorControlsTints();
         }
 
         override public void OnUpdatePanel(Vector3 vToPanel, Vector3 vHitPoint)
         {
             base.OnUpdatePanel(vToPanel, vHitPoint);
+            ShowSlot1IfMirrorModeOff();
             SymmetryWidget widget = FindSymmetryWidget();
             if (widget != null)
             {
@@ -106,7 +121,55 @@ namespace TiltBrush
             }
             RefreshAxisLockButtonDescriptions();
             RefreshOrientationButtonDescriptions();
-            RefreshMirrorSaveSlotTints();
+            RefreshAllMirrorControlsTints();
+            ShowSlot1IfMirrorModeOff();
+        }
+
+        static bool s_ControlsGlassShown;
+        static bool s_PanelIsOpen;
+
+        public static bool PanelIsOpen
+        {
+            get
+            {
+                return s_PanelIsOpen;
+            }
+        }
+
+        void ShowSlot1IfMirrorModeOff()
+        {
+            if (s_ControlsGlassShown)
+            {
+                return;
+            }
+            if (PointerManager.m_Instance == null)
+            {
+                Debug.LogError("[MirrorControlsPanel.ShowSlot1IfMirrorModeOff] skip no PointerManager");
+                return;
+            }
+            if (PointerManager.m_Instance.CurrentSymmetryMode != PointerManager.SymmetryMode.None)
+            {
+                Debug.LogError(
+                    "[MirrorControlsPanel.ShowSlot1IfMirrorModeOff] skip mode=" +
+                    PointerManager.m_Instance.CurrentSymmetryMode);
+                return;
+            }
+            SymmetryWidget widget = FindSymmetryWidget();
+            if (widget == null)
+            {
+                Debug.LogError("[MirrorControlsPanel.ShowSlot1IfMirrorModeOff] skip no widget");
+                return;
+            }
+            s_PanelIsOpen = true;
+            s_ControlsGlassShown = true;
+            Debug.LogError("[MirrorControlsPanel.ShowSlot1IfMirrorModeOff] show slot 1 mirror mode off");
+            widget.ShowGlassForControlsPanel();
+        }
+
+
+        void LogButtonPress(string button, string method)
+        {
+            Debug.LogError("[MirrorControlsPanel." + method + "] button=" + button);
         }
 
         public void NotifyDismissedByUser()
@@ -117,6 +180,12 @@ namespace TiltBrush
                 Debug.LogError(
                     "[MirrorControlsPanel.NotifyDismissedByUser] close or toss -> exit Hyperspace");
                 mirror.ExitMoveToMirrorMode();
+            }
+            s_PanelIsOpen = false;
+            s_ControlsGlassShown = false;
+            if (mirror != null)
+            {
+                mirror.HideGlassForControlsPanel();
             }
         }
 
@@ -247,6 +316,14 @@ namespace TiltBrush
                     case "LockMirrorMovement":
                         active = axis == SymmetryWidget.MirrorSlideDefault.All;
                         break;
+                    case "RingTangentLock":
+                        active = PointerManager.m_Instance != null
+                            && PointerManager.m_Instance.m_RingTangentLock;
+                        break;
+                    case "RingPlaneLock":
+                        active = PointerManager.m_Instance != null
+                            && PointerManager.m_Instance.m_RingPlaneLock;
+                        break;
                     default:
                         isMirrorModeControl = false;
                         break;
@@ -258,7 +335,11 @@ namespace TiltBrush
                 }
 
                 Color tint = kMirrorControlsPanelInactiveTint;
-                if (active && isOrientation && !orientSaved)
+                if (active && (name == "RingTangentLock" || name == "RingPlaneLock"))
+                {
+                    tint = m_RingLockTint;
+                }
+                else if (active && isOrientation && !orientSaved)
                 {
                     tint = Color.red;
                 }
@@ -320,6 +401,7 @@ namespace TiltBrush
 
         public void SetMirrorHorizontalSideways()
         {
+            LogButtonPress("SetMirrorHorizontalSideways", "SetMirrorHorizontalSideways");
             SymmetryWidget widget = FindSymmetryWidget();
             if (widget == null)
             {
@@ -332,6 +414,7 @@ namespace TiltBrush
 
         public void SetMirrorHorizontalForward()
         {
+            LogButtonPress("SetMirrorHorizontalForward", "SetMirrorHorizontalForward");
             SymmetryWidget widget = FindSymmetryWidget();
             if (widget == null)
             {
@@ -344,6 +427,7 @@ namespace TiltBrush
 
         public void SetMirrorVerticalForward()
         {
+            LogButtonPress("SetMirrorVerticalForward", "SetMirrorVerticalForward");
             SymmetryWidget widget = FindSymmetryWidget();
             if (widget == null)
             {
@@ -356,6 +440,7 @@ namespace TiltBrush
 
         public void SetMirrorVerticalSideways()
         {
+            LogButtonPress("SetMirrorVerticalSideways", "SetMirrorVerticalSideways");
             SymmetryWidget widget = FindSymmetryWidget();
             if (widget == null)
             {
@@ -368,7 +453,8 @@ namespace TiltBrush
 
         public void ToggleMirrorAxisLockX()
         {
-            Debug.LogError("MIRROR_AXIS: panel ToggleX");
+            LogButtonPress("Left-Right-X", "ToggleMirrorAxisLockX");
+            Debug.LogError("[MirrorControlsPanel.ToggleMirrorAxisLockX] button=Left-Right-X");
             SymmetryWidget widget = FindSymmetryWidget();
             if (widget == null)
             {
@@ -382,7 +468,7 @@ namespace TiltBrush
 
         public void ToggleMirrorAxisLockY()
         {
-            Debug.LogError("MIRROR_AXIS: panel ToggleY");
+            Debug.LogError("[MirrorControlsPanel.ToggleMirrorAxisLockY] button=Y-axis-object-not-in-lookup");
             SymmetryWidget widget = FindSymmetryWidget();
             if (widget == null)
             {
@@ -396,7 +482,8 @@ namespace TiltBrush
 
         public void ToggleMirrorAxisLockZ()
         {
-            Debug.LogError("MIRROR_AXIS: panel ToggleZ");
+            LogButtonPress("Forward-Back-Z", "ToggleMirrorAxisLockZ");
+            Debug.LogError("[MirrorControlsPanel.ToggleMirrorAxisLockZ] button=Forward-Back-Z");
             SymmetryWidget widget = FindSymmetryWidget();
             if (widget == null)
             {
@@ -410,7 +497,7 @@ namespace TiltBrush
 
         public void ToggleMirrorAxisLockAll()
         {
-            Debug.LogError("MIRROR_AXIS: panel ToggleAll");
+            Debug.LogError("[MirrorControlsPanel.ToggleMirrorAxisLockAll] button=all-axis-object-not-in-lookup");
             SymmetryWidget widget = FindSymmetryWidget();
             if (widget == null)
             {
@@ -579,92 +666,109 @@ namespace TiltBrush
         // Constrain Spin and enforce 90 degree snap
         public void ToggleConstrainOrientation()
         {
+            LogButtonPress("ConstrainOrientation", "ToggleConstrainOrientation");
             SymmetryWidget widget = FindSymmetryWidget();
             if (widget == null)
             {
                 Debug.LogError(
-                    "[MirrorControlsPanel.ToggleConstrainOrientation] MIRROR_LOCK: widget null");
+                    "[MirrorControlsPanel.ToggleConstrainOrientation] button=ConstrainOrientation widget null");
                 return;
             }
             widget.ToggleLockOrientation();
             RefreshMirrorControlsPanelTints();
-            RefreshMirrorSaveSlotTints();
+            RefreshAllMirrorControlsTints();
         }
 
         public void ToggleLockSpin()
         {
+            LogButtonPress("LockSpin", "ToggleLockSpin");
             SymmetryWidget widget = FindSymmetryWidget();
             if (widget == null)
             {
                 Debug.LogError(
-                    "[MirrorControlsPanel.ToggleLockSpin] MIRROR_LOCK: widget null");
+                    "[MirrorControlsPanel.ToggleLockSpin] button=LockSpin widget null");
                 return;
             }
             widget.ToggleLockSpin();
             RefreshMirrorControlsPanelTints();
-            RefreshMirrorSaveSlotTints();
+            RefreshAllMirrorControlsTints();
         }
 
 
         // ------- MIRROR SAVE SLOT SECTION BEGINS ----------
         public void MirrorSaveSlot01()
         {
+            LogButtonPress("MirrorSaveSlot01", "MirrorSaveSlot01");
             HandleMirrorSaveSlot(1);
         }
         public void MirrorSaveSlot02()
         {
+            LogButtonPress("MirrorSaveSlot02", "MirrorSaveSlot02");
             HandleMirrorSaveSlot(2);
         }
         public void MirrorSaveSlot03()
         {
+            LogButtonPress("MirrorSaveSlot03", "MirrorSaveSlot03");
             HandleMirrorSaveSlot(3);
         }
         public void MirrorSaveSlot04()
         {
+            LogButtonPress("MirrorSaveSlot04", "MirrorSaveSlot04");
             HandleMirrorSaveSlot(4);
         }
         public void MirrorSaveSlot05()
         {
+            LogButtonPress("MirrorSaveSlot05", "MirrorSaveSlot05");
             HandleMirrorSaveSlot(5);
         }
         public void MirrorSaveSlot06()
         {
+            LogButtonPress("MirrorSaveSlot06", "MirrorSaveSlot06");
             HandleMirrorSaveSlot(6);
         }
         public void MirrorSaveSlot07()
         {
+            LogButtonPress("MirrorSaveSlot07", "MirrorSaveSlot07");
             HandleMirrorSaveSlot(7);
         }
         public void MirrorSaveSlot08()
         {
+            LogButtonPress("MirrorSaveSlot08", "MirrorSaveSlot08");
             HandleMirrorSaveSlot(8);
         }
         public void MirrorSaveSlot09()
         {
+            LogButtonPress("MirrorSaveSlot09", "MirrorSaveSlot09");
             HandleMirrorSaveSlot(9);
         }
         public void MirrorSaveSlot10()
         {
+            LogButtonPress("MirrorSaveSlot10", "MirrorSaveSlot10");
             HandleMirrorSaveSlot(10);
         }
         public void MirrorSaveSlot11()
         {
+            LogButtonPress("MirrorSaveSlot11", "MirrorSaveSlot11");
             HandleMirrorSaveSlot(11);
         }
         public void MirrorSaveSlot12()
         {
+            LogButtonPress("MirrorSaveSlot12", "MirrorSaveSlot12");
             HandleMirrorSaveSlot(12);
         }
         public void MirrorSaveSlot13()
         {
+            LogButtonPress("MirrorSaveSlot13", "MirrorSaveSlot13");
             HandleMirrorSaveSlot(13);
         }
         public void MirrorSaveSlot14()
         {
+            LogButtonPress("MirrorSaveSlot14", "MirrorSaveSlot14");
             HandleMirrorSaveSlot(14);
         }
         public void MirrorSaveSlot15()
         {
+            LogButtonPress("MirrorSaveSlot15", "MirrorSaveSlot15");
             HandleMirrorSaveSlot(15);
         }
 
@@ -673,6 +777,7 @@ namespace TiltBrush
 
         public void ToggleMirrorSaveSlotClearMode()
         {
+            LogButtonPress("ClearSavedMirror", "ToggleMirrorSaveSlotClearMode");
             SymmetryWidget widget = FindSymmetryWidget();
             if (widget != null && widget.MoveToMirrorModeActive)
             {
@@ -681,8 +786,8 @@ namespace TiltBrush
 
             m_MirrorSaveSlotClearMode = !m_MirrorSaveSlotClearMode;
             Debug.LogError(
-                "MIRROR_SLOT: ClearMode -> " + m_MirrorSaveSlotClearMode);
-            RefreshMirrorSaveSlotTints();
+                "[MirrorControlsPanel.ToggleMirrorSaveSlotClearMode] button=ClearSavedMirror clear=" + m_MirrorSaveSlotClearMode);
+            RefreshAllMirrorControlsTints();
         }
 
         void HandleMirrorSaveSlot(int slotNumber1Based)
@@ -700,17 +805,32 @@ namespace TiltBrush
                 return;
             }
 
-            if (widget.IsTrueCenterSlot(index) && !widget.MoveToMirrorModeActive)
+            if (widget.IsTrueCenterSlot(index) && !widget.MoveToMirrorModeActive
+                && !widget.ArchitectLineModeActive)
             {
                 if (m_MirrorSaveSlotClearMode)
                 {
-                    Debug.LogError("MIRROR_SLOT: Handle slot1 True Center - clear ignored");
-                    RefreshMirrorSaveSlotTints();
+                    Debug.LogError("MIRROR_SLOT: Handle array=0 panel=1 TrueCenter - clear ignored");
+                    RefreshAllMirrorControlsTints();
                     return;
                 }
                 widget.EnsureTrueCenterSlot();
                 widget.SetTeleportDest(index);
-                RefreshMirrorSaveSlotTints();
+                RefreshAllMirrorControlsTints();
+                return;
+            }
+
+            if (widget.ArchitectLineModeActive)
+            {
+                if (widget.ArchitecturalMultiTargetOn)
+                {
+                    widget.ToggleArchitecturalMultiTargetSlot(index);
+                }
+                if (widget.ArchitecturalPickingTarget)
+                {
+                    widget.TryAssignArchitecturalTarget(index);
+                }
+                RefreshAllMirrorControlsTints();
                 return;
             }
 
@@ -720,7 +840,7 @@ namespace TiltBrush
                 if (widget.MoveToMirrorPickingTo)
                 {
                     widget.TryAssignMoveToMirrorTo(index);
-                    RefreshMirrorSaveSlotTints();
+                    RefreshAllMirrorControlsTints();
                 }
                 return;
             }
@@ -735,7 +855,7 @@ namespace TiltBrush
                 {
                     widget.TryRestoreLastClearedMirrorSaveSlot(index);
                 }
-                RefreshMirrorSaveSlotTints();
+                RefreshAllMirrorControlsTints();
                 return;
             }
 
@@ -747,12 +867,13 @@ namespace TiltBrush
             {
                 widget.SaveMirrorSaveSlot(index);
             }
-            RefreshMirrorSaveSlotTints();
+            RefreshAllMirrorControlsTints();
         }
 
 
         public void MirrorTrueCenter()
         {
+            LogButtonPress("TrueCenter", "MirrorTrueCenter");
             HandleMirrorSaveSlot(1);
         }
 
@@ -760,6 +881,7 @@ namespace TiltBrush
 
         public void QuickRestore()
         {
+            LogButtonPress("QuickRestore", "QuickRestore");
             SymmetryWidget widget = FindSymmetryWidget();
             if (widget != null && widget.MoveToMirrorModeActive)
             {
@@ -777,9 +899,21 @@ namespace TiltBrush
                 return;
             }
             widget.ApplyMirrorQuickReturn();
-            RefreshMirrorSaveSlotTints();
+            RefreshAllMirrorControlsTints();
         }
 
+
+        void RefreshAllMirrorControlsTints()
+        {
+            MirrorControlsPanel[] panels = FindObjectsOfType<MirrorControlsPanel>(true);
+            for (int i = 0; i < panels.Length; ++i)
+            {
+                if (panels[i] != null)
+                {
+                    panels[i].RefreshMirrorSaveSlotTints();
+                }
+            }
+        }
 
         void RefreshMirrorSaveSlotTints()
         {
@@ -798,8 +932,64 @@ namespace TiltBrush
                 bool matchesCurrent = false;
                 bool isMoveToTo = false;
                 bool isTeleportDest = false;
+                bool isArchitecturalTarget = false;
+                bool isMultiTarget = false;
+                bool inConnectPool = false;
 
                 // --- Hyperspace phase buttons (gold / purple) ---
+                if (name == "ArchitectLineMode")
+                {
+                    active = widget != null && widget.ArchitectLineModeActive;
+                    ForceMirrorControlsPanelButtonTint(
+                        toggles[i],
+                        active ? m_ArchitectLineModeTint : MirrorControlsInactiveTint);
+                    continue;
+                }
+                if (name == "ArchitecturalTarget")
+                {
+                    active = widget != null && widget.ArchitecturalPickingTarget;
+                    ForceMirrorControlsPanelButtonTint(
+                        toggles[i],
+                        active ? m_ArchitecturalTargetTint : MirrorControlsInactiveTint);
+                    continue;
+                }
+                if (name == "ArchitecturalDraw")
+                {
+                    active = widget != null && (widget.ArchitecturalTargetArmed() || widget.ArchitecturalMultiTargetOn || widget.ArchitecturalConnectArmed);
+                    ForceMirrorControlsPanelButtonTint(
+                        toggles[i],
+                        active ? m_ArchitecturalTargetTint : MirrorControlsInactiveTint);
+                    continue;
+                }
+                if (name == "ArchitecturalMultiTarget")
+                {
+                    active = widget != null && widget.ArchitecturalMultiTargetOn;
+                    ForceMirrorControlsPanelButtonTint(
+                        toggles[i],
+                        active ? m_ArchitecturalMultiTargetTint : MirrorControlsInactiveTint);
+                    continue;
+                }
+                if (name == "ArchitecturalConnectAll")
+                {
+                    active = widget != null && widget.ArchitecturalConnectArmed;
+                    ForceMirrorControlsPanelButtonTint(
+                        toggles[i],
+                        active ? m_ArchitecturalConnectAllTint : MirrorControlsInactiveTint);
+                    continue;
+                }
+                if (name == "ArchitecturalConnectDraw")
+                {
+                    active = widget != null && widget.ArchitecturalConnectArmed;
+                    ForceMirrorControlsPanelButtonTint(
+                        toggles[i],
+                        active ? m_ArchitecturalConnectAllTint : MirrorControlsInactiveTint);
+                    continue;
+                }
+                if (name == m_AxisFlashName && Time.time < m_AxisFlashUntil)
+                {
+                    ForceMirrorControlsPanelButtonTint(toggles[i], Color.yellow);
+                    continue;
+                }
                 if (name == "HyperspaceMode")
                 {
                     active = widget != null && widget.MoveToMirrorModeActive;
@@ -932,6 +1122,14 @@ namespace TiltBrush
                         {
                             matchesCurrent = widget.IsMirrorSaveSlotMatchingCurrent(index);
                             angledOccupied = !widget.IsMirrorSaveSlotAxisAligned(index);
+                            isMultiTarget = widget.IsArchitecturalMultiTarget(index);
+                            inConnectPool = widget.IsArchitecturalConnectPool(index);
+                            isArchitecturalTarget =
+                                widget.ArchitectLineModeActive
+                                && ((widget.ArchitecturalTargetArmed()
+                                    && widget.ArchitecturalTargetIndex == index)
+                                    || isMultiTarget
+                                    || inConnectPool);
                             isMoveToTo =
                                 widget.MoveToMirrorModeActive
                                 && widget.PeekMoveToMirrorToValid()
@@ -944,6 +1142,8 @@ namespace TiltBrush
                                 && widget.PeekTeleportDestValid()
                                 && widget.TeleportDestIndex == index
                                 && !matchesCurrent;
+                            matchesCurrent = matchesCurrent
+                                && widget.TeleportDestIndex == index;
                         }
                     }
                     else
@@ -963,6 +1163,14 @@ namespace TiltBrush
                 if (!active)
                 {
                     tint = MirrorControlsInactiveTint;
+                }
+                else if (isArchitecturalTarget)
+                {
+                    tint = isMultiTarget
+                        ? m_ArchitecturalMultiTargetTint
+                        : (inConnectPool
+                            ? m_ArchitecturalConnectAllTint
+                            : m_ArchitecturalTargetTint);
                 }
                 else if (isMoveToTo)
                 {
@@ -1003,6 +1211,7 @@ namespace TiltBrush
 
         public void ToggleMoveToMirrorMode()
         {
+            LogButtonPress("HyperspaceMode", "ToggleMoveToMirrorMode");
             SymmetryWidget widget = FindSymmetryWidget();
             if (widget == null)
             {
@@ -1017,11 +1226,12 @@ namespace TiltBrush
                 m_MirrorSaveSlotClearMode = false;
                 widget.EnterMoveToMirrorMode();
             }
-            RefreshMirrorSaveSlotTints();
+            RefreshAllMirrorControlsTints();
         }
 
         public void BeginMoveToMirrorSetTo()
         {
+            LogButtonPress("SetJumpTarget", "BeginMoveToMirrorSetTo");
             SymmetryWidget widget = FindSymmetryWidget();
             if (widget == null)
             {
@@ -1036,31 +1246,33 @@ namespace TiltBrush
                 m_MirrorSaveSlotClearMode = false;
             }
             widget.BeginMoveToMirrorSetTo();
-            RefreshMirrorSaveSlotTints();
+            RefreshAllMirrorControlsTints();
         }
 
         public void ApplyMoveToMirror()
         {
+            LogButtonPress("SendSelection", "ApplyMoveToMirror");
             SymmetryWidget widget = FindSymmetryWidget();
             if (widget == null || !widget.IsMoveToMirrorArmed())
             {
                 Debug.LogError(
-                    "[MirrorControlsPanel.ApplyMoveToMirror] SEND skip unarmed");
+                    "[MirrorControlsPanel.ApplyMoveToMirror] button=SendSelection skip unarmed");
                 return;
             }
             SketchMemoryScript.m_Instance.PerformAndRecordCommand(
                 new ApplyMirrorDestinationCommand());
-            RefreshMirrorSaveSlotTints();
+            RefreshAllMirrorControlsTints();
         }
 
 
         public void JumpToMoveToMirrorDestination()
         {
+            LogButtonPress("MakeTargetSlotActive", "JumpToMoveToMirrorDestination");
             SymmetryWidget widget = FindSymmetryWidget();
             if (widget == null || !widget.PeekTeleportDestValid())
             {
                 Debug.LogError(
-                    "[MirrorControlsPanel.JumpToMoveToMirrorDestination] skip no dest slot");
+                    "[MirrorControlsPanel.JumpToMoveToMirrorDestination] button=MakeTargetSlotActive skip no dest slot");
                 return;
             }
 
@@ -1069,50 +1281,402 @@ namespace TiltBrush
             if (!cmd.IsValid)
             {
                 Debug.LogError(
-                    "[MirrorControlsPanel.JumpToMoveToMirrorDestination] skip already there or invalid");
-                RefreshMirrorSaveSlotTints();
+                    "[MirrorControlsPanel.JumpToMoveToMirrorDestination] button=MakeTargetSlotActive skip already there or invalid");
+                RefreshAllMirrorControlsTints();
                 return;
             }
+            Debug.LogError(
+                "[MirrorControlsPanel.JumpToMoveToMirrorDestination] button=MakeTargetSlotActive dest=" +
+                widget.TeleportDestIndex);
             SketchMemoryScript.m_Instance.PerformAndRecordCommand(cmd);
-            RefreshMirrorSaveSlotTints();
+            RefreshAllMirrorControlsTints();
         }
 
         //  SLOT GUIDES
         public void ToggleSlotGuides()
         {
+            LogButtonPress("SlotGuides", "ToggleSlotGuides");
+            s_PanelIsOpen = true;
+            ShowSlot1IfMirrorModeOff();
             SymmetryWidget widget = FindSymmetryWidget();
             if (widget == null)
             {
                 return;
             }
             widget.ToggleSlotGuides();
-            RefreshMirrorSaveSlotTints();
+            RefreshAllMirrorControlsTints();
         }
 
         public void TogglePlaneLock()
         {
+            LogButtonPress("PlaneLock", "TogglePlaneLock");
             SymmetryWidget widget = FindSymmetryWidget();
             if (widget == null)
             {
                 return;
             }
             widget.TogglePlaneLock();
-            RefreshMirrorSaveSlotTints();
+            RefreshAllMirrorControlsTints();
+        }
+
+        public void ToggleRingTangentLock()
+        {
+            LogButtonPress("RingTangentLock", "ToggleRingTangentLock");
+            if (PointerManager.m_Instance == null)
+            {
+                return;
+            }
+
+            PointerManager.m_Instance.ToggleRingTangentLock();
+            RefreshMirrorControlsPanelTints();
+        }
+
+        public void ToggleRingPlaneLock()
+        {
+            LogButtonPress("RingPlaneLock", "ToggleRingPlaneLock");
+            if (PointerManager.m_Instance == null)
+            {
+                return;
+            }
+
+            PointerManager.m_Instance.ToggleRingPlaneLock();
+            RefreshMirrorControlsPanelTints();
+        }
+
+        const float kSlotHeldAxisTolerance = 0.01f;
+
+        public void DrawMirrorSlotSpan()
+        {
+            LogButtonPress("MirrorSlotSpan", "DrawMirrorSlotSpan");
+            SymmetryWidget widget = FindSymmetryWidget();
+            if (widget == null || PointerManager.m_Instance == null)
+            {
+                FlashSlotSpanMiss();
+                return;
+            }
+
+            bool sideways = widget.CurrentPreferredOrientation == SymmetryWidget.PreferredOrientation.HorizontalSideways
+                || widget.CurrentPreferredOrientation == SymmetryWidget.PreferredOrientation.VerticalSideways;
+            Vector3 axis = sideways ? widget.transform.right : widget.transform.forward;
+            bool found = widget.TryFindSlotAhead(
+                widget.transform.position, axis, kSlotHeldAxisTolerance,
+                out int slot, out Vector3 slotRoom, out float ahead, out float offAxis);
+            if (!found)
+            {
+                Debug.LogError(
+                    "[MirrorControlsPanel.DrawMirrorSlotSpan] button=MirrorSlotSpan miss axis=" + axis +
+                    " facing=" + widget.CurrentPreferredOrientation);
+                FlashSlotSpanMiss();
+                return;
+            }
+
+            float room = Vector3.Distance(widget.transform.position, slotRoom);
+            Debug.LogError(
+                "[MirrorControlsPanel.DrawMirrorSlotSpan] button=MirrorSlotSpan " + SymmetryWidget.SlotLogLabel(slot) +
+                " room=" + room + " ahead=" + ahead + " off=" + offAxis);
+            if (!PointerManager.m_Instance.DrawSingleSpan(widget.transform.position, slotRoom))
+            {
+                FlashSlotSpanMiss();
+            }
+        }
+
+        void FlashSlotSpanMiss()
+        {
+            ActionToggleButton button = FindNamedToggle("MirrorSlotSpan");
+            if (button == null)
+            {
+                return;
+            }
+
+            ForceMirrorControlsPanelButtonTint(button, Color.red);
+            StartCoroutine(ClearSlotSpanFlash(button));
+        }
+
+        IEnumerator ClearSlotSpanFlash(ActionToggleButton button)
+        {
+            yield return new WaitForSeconds(1.2f);
+            if (button != null)
+            {
+                ForceMirrorControlsPanelButtonTint(button, kMirrorControlsPanelInactiveTint);
+            }
+        }
+
+        ActionToggleButton FindNamedToggle(string name)
+        {
+            ActionToggleButton[] toggles = GetComponentsInChildren<ActionToggleButton>(true);
+            for (int i = 0; i < toggles.Length; ++i)
+            {
+                if (toggles[i] != null && toggles[i].gameObject.name == name)
+                {
+                    return toggles[i];
+                }
+            }
+
+            return null;
+        }
+
+
+        public void ToggleArchitectLineMode()
+        {
+            LogButtonPress("ArchitectLineMode", "ToggleArchitectLineMode");
+            SymmetryWidget widget = FindSymmetryWidget();
+            if (widget == null)
+            {
+                return;
+            }
+            if (widget.ArchitectLineModeActive)
+            {
+                widget.ExitArchitectLineMode();
+            }
+            else
+            {
+                m_MirrorSaveSlotClearMode = false;
+                widget.EnterArchitectLineMode();
+            }
+            RefreshAllMirrorControlsTints();
+        }
+
+        public void BeginArchitecturalTarget()
+        {
+            LogButtonPress("ArchitecturalTarget", "BeginArchitecturalTarget");
+            SymmetryWidget widget = FindSymmetryWidget();
+            if (widget == null || !widget.ArchitectLineModeActive)
+            {
+                return;
+            }
+            widget.BeginArchitecturalTarget();
+            RefreshAllMirrorControlsTints();
+        }
+
+        public void ToggleArchitecturalMultiTarget()
+        {
+            LogButtonPress("ArchitecturalMultiTarget", "ToggleArchitecturalMultiTarget");
+            SymmetryWidget widget = FindSymmetryWidget();
+            if (widget == null || !widget.ArchitectLineModeActive)
+            {
+                return;
+            }
+            widget.SetArchitecturalMultiTarget(!widget.ArchitecturalMultiTargetOn);
+            RefreshAllMirrorControlsTints();
+        }
+
+        public void ArchitecturalConnectAll()
+        {
+            LogButtonPress("ArchitecturalConnectAll", "ArchitecturalConnectAll");
+            SymmetryWidget widget = FindSymmetryWidget();
+            if (widget == null || !widget.ArchitectLineModeActive)
+            {
+                return;
+            }
+            if (widget.ArchitecturalConnectArmed)
+            {
+                widget.ClearArchitecturalConnect();
+                RefreshAllMirrorControlsTints();
+                return;
+            }
+            int[] slots = widget.ArchitecturalMultiTargetOn
+                ? widget.CopyArchitecturalTargets()
+                : widget.CopyOccupiedSlots();
+            widget.ArmArchitecturalConnect(slots);
+            RefreshAllMirrorControlsTints();
+        }
+
+        public void ArchitecturalConnectDraw()
+        {
+            LogButtonPress("ArchitecturalConnectDraw", "ArchitecturalConnectDraw");
+            SymmetryWidget widget = FindSymmetryWidget();
+            if (widget == null || PointerManager.m_Instance == null || !widget.ArchitecturalConnectArmed)
+            {
+                Debug.LogError("[MirrorControlsPanel.ArchitecturalConnectDraw] miss unarmed");
+                FlashArchitecturalDrawMiss();
+                return;
+            }
+            int[] slots = widget.CopyArchitecturalConnectPool();
+            DrawArchitecturalPairs(widget, slots);
+            widget.ClearArchitecturalConnect();
+            widget.ClearArchitecturalMultiTarget();
+            RefreshAllMirrorControlsTints();
+        }
+
+        void DrawArchitecturalPairs(SymmetryWidget widget, int[] slots)
+        {
+            for (int s = 0; s < slots.Length; ++s)
+            {
+                Vector3 from;
+                if (!widget.TryGetSlotRoom(slots[s], out from)) continue;
+                TrTransform pose;
+                widget.TryGetMirrorSaveSlotPose(slots[s], out pose);
+                Debug.LogError(
+                    "[MirrorControlsPanel.ArchitecturalConnectAll] source " +
+                    SymmetryWidget.SlotLogLabel(slots[s]) +
+                    " euler=" + pose.rotation.eulerAngles);
+                for (int d = s + 1; d < slots.Length; ++d)
+                {
+                    Vector3 to;
+                    if (!widget.TryGetSlotRoom(slots[d], out to)) continue;
+                    PointerManager.m_Instance.DrawSingleSpan(from, to);
+                }
+            }
+        }
+
+        public void ArchitecturalStackLast()
+        {
+            LogButtonPress("ArchitecturalStackLast", "ArchitecturalStackLast");
+            SymmetryWidget widget = FindSymmetryWidget();
+            if (widget == null || SketchMemoryScript.m_Instance == null)
+            {
+                return;
+            }
+            var sources = new System.Collections.Generic.List<Stroke>();
+            foreach (Stroke stroke in widget.ArchitecturalSourceStrokes)
+            {
+                if (stroke != null && stroke.IsGeometryEnabled) sources.Add(stroke);
+            }
+            if (sources.Count == 0)
+            {
+                Debug.LogError("[MirrorControlsPanel.ArchitecturalStackLast] miss no strokes");
+                FlashArchitecturalDrawMiss();
+                return;
+            }
+            Vector3 axis = Vector3.up;
+            string flash = "Up-Down-Y";
+            switch (widget.CurrentMirrorSlideDefault)
+            {
+                case SymmetryWidget.MirrorSlideDefault.X:
+                    axis = Vector3.right;
+                    flash = "Left-Right-X";
+                    break;
+                case SymmetryWidget.MirrorSlideDefault.Z:
+                    axis = Vector3.forward;
+                    flash = "Forward-Back-Z";
+                    break;
+            }
+            axis = App.Scene.Pose.rotation * axis;
+            m_AxisFlashName = flash;
+            m_AxisFlashUntil = Time.time + 0.33f;
+            float gap = 0.15f * App.METERS_TO_UNITS;
+            if (PointerManager.m_Instance != null && PointerManager.m_Instance.MainPointer != null)
+            {
+                gap = Mathf.Max(gap, PointerManager.m_Instance.MainPointer.BrushSizeAbsolute);
+            }
+            float sourceFar = FurthestOnAxis(sources, axis);
+            float copyFar = FurthestOnAxis(widget.ArchitecturalCopies, axis);
+            float origin = sourceFar;
+            if (!float.IsNegativeInfinity(copyFar)) origin = Mathf.Max(sourceFar, copyFar);
+            CanvasScript canvas = sources[0].Canvas;
+            float extra = Mathf.Max(0f, origin - sourceFar);
+            Vector3 offsetCs = canvas.transform.InverseTransformVector(axis * (gap + extra));
+            var command = new ArchitecturalStackCommand(sources, TrTransform.T(offsetCs));
+            SketchMemoryScript.m_Instance.PerformAndRecordCommand(command);
+            foreach (Stroke stroke in command.Copies) widget.ArchitecturalCopies.Add(stroke);
+            Debug.LogError("[MirrorControlsPanel.ArchitecturalStackLast] axis=" + flash + " copies=" + command.Copies.Count);
+            RefreshAllMirrorControlsTints();
+        }
+
+        static float FurthestOnAxis(System.Collections.Generic.IList<Stroke> strokes, Vector3 axis)
+        {
+            float far = float.NegativeInfinity;
+            for (int i = 0; i < strokes.Count; ++i)
+            {
+                Stroke stroke = strokes[i];
+                if (stroke == null || !stroke.IsGeometryEnabled || stroke.m_ControlPoints == null || stroke.Canvas == null) continue;
+                TrTransform pose = stroke.Canvas.Pose;
+                for (int p = 0; p < stroke.m_ControlPoints.Length; ++p)
+                {
+                    Vector3 room = pose.translation + pose.rotation * (stroke.m_ControlPoints[p].m_Pos * pose.scale);
+                    far = Mathf.Max(far, Vector3.Dot(room, axis));
+                }
+            }
+            return far;
+        }
+
+        public void ArchitecturalDraw()
+        {
+            LogButtonPress("ArchitecturalDraw", "ArchitecturalDraw");
+            SymmetryWidget widget = FindSymmetryWidget();
+            if (widget != null) widget.BeginArchitecturalStrokeCapture();
+            if (widget != null && widget.ArchitecturalConnectArmed)
+            {
+                int[] pool = widget.CopyArchitecturalConnectPool();
+                Debug.LogError("[MirrorControlsPanel.ArchitecturalDraw] connect count=" + pool.Length);
+                DrawArchitecturalPairs(widget, pool);
+                widget.ClearArchitecturalConnect();
+                widget.ClearArchitecturalMultiTarget();
+                RefreshAllMirrorControlsTints();
+                return;
+            }
+            if (widget != null && widget.ArchitecturalMultiTargetOn)
+            {
+                int[] slots = widget.CopyArchitecturalTargets();
+                Vector3 from = widget.transform.position;
+                for (int i = 0; i < slots.Length; ++i)
+                {
+                    if (widget.IsMirrorSaveSlotMatchingCurrent(slots[i])) continue;
+                    Vector3 to;
+                    if (!widget.TryGetSlotRoom(slots[i], out to)) continue;
+                    Debug.LogError(
+                        "[MirrorControlsPanel.ArchitecturalDraw] multi " +
+                        SymmetryWidget.SlotLogLabel(slots[i]));
+                    PointerManager.m_Instance.DrawSingleSpan(from, to);
+                }
+                widget.SetArchitecturalMultiTarget(false);
+                RefreshAllMirrorControlsTints();
+                return;
+            }
+            if (widget == null || PointerManager.m_Instance == null || !widget.ArchitecturalTargetArmed())
+            {
+                Debug.LogError("[MirrorControlsPanel.ArchitecturalDraw] button=ArchitecturalDraw miss unarmed");
+                FlashArchitecturalDrawMiss();
+                return;
+            }
+            Vector3 slotRoom;
+            if (!widget.TryGetArchitecturalTargetRoom(out slotRoom))
+            {
+                Debug.LogError("[MirrorControlsPanel.ArchitecturalDraw] button=ArchitecturalDraw miss no pose");
+                FlashArchitecturalDrawMiss();
+                return;
+            }
+            TrTransform pose = widget.GetArchitecturalTargetPose_SS();
+            Debug.LogError(
+                "[MirrorControlsPanel.ArchitecturalDraw] button=ArchitecturalDraw " +
+                SymmetryWidget.SlotLogLabel(widget.ArchitecturalTargetIndex) +
+                " widget=" + widget.GetEntityId() +
+                " euler=" + pose.rotation.eulerAngles);
+            widget.ClearArchitecturalTarget();
+            RefreshAllMirrorControlsTints();
+            if (!PointerManager.m_Instance.DrawSingleSpan(widget.transform.position, slotRoom))
+            {
+                FlashArchitecturalDrawMiss();
+                return;
+            }
+        }
+
+        void FlashArchitecturalDrawMiss()
+        {
+            ActionToggleButton button = FindNamedToggle("ArchitecturalDraw");
+            if (button == null)
+            {
+                return;
+            }
+            ForceMirrorControlsPanelButtonTint(button, Color.red);
+            StartCoroutine(ClearSlotSpanFlash(button));
         }
 
         public void ToggleTunnelLock()
         {
+            LogButtonPress("TunnelLock", "ToggleTunnelLock");
             SymmetryWidget widget = FindSymmetryWidget();
             if (widget == null)
             {
                 return;
             }
             widget.ToggleTunnelLock();
-            RefreshMirrorSaveSlotTints();
+            RefreshAllMirrorControlsTints();
         }
 
         public void SummonLiveMirror()
         {
+            LogButtonPress("SummonLiveMirror", "SummonLiveMirror");
             if (SketchControlsScript.m_Instance == null)
             {
                 return;
@@ -1124,11 +1688,12 @@ namespace TiltBrush
 
         public void TeleportUserToActiveMirror()
         {
+            LogButtonPress("TeleportToActive", "TeleportUserToActiveMirror");
             SymmetryWidget widget = FindSymmetryWidget();
             if (widget == null || !widget.PeekTeleportDestValid())
             {
                 Debug.LogError(
-                    "[MirrorControlsPanel.TeleportUserToActiveMirror] skip no dest slot");
+                    "[MirrorControlsPanel.TeleportUserToActiveMirror] button=TeleportToActive skip no dest slot");
                 return;
             }
             widget.ExitMoveToMirrorMode(true);
@@ -1136,21 +1701,25 @@ namespace TiltBrush
             if (!cmd.IsValid)
             {
                 Debug.LogError(
-                    "[MirrorControlsPanel.TeleportUserToActiveMirror] skip command invalid");
-                RefreshMirrorSaveSlotTints();
+                    "[MirrorControlsPanel.TeleportUserToActiveMirror] button=TeleportToActive skip command invalid");
+                RefreshAllMirrorControlsTints();
                 return;
             }
+            Debug.LogError(
+                "[MirrorControlsPanel.TeleportUserToActiveMirror] button=TeleportToActive dest=" +
+                widget.TeleportDestIndex);
             SketchMemoryScript.m_Instance.PerformAndRecordCommand(cmd);
-            RefreshMirrorSaveSlotTints();
+            RefreshAllMirrorControlsTints();
         }
 
         public void CloneMoveToMirror()
         {
+            LogButtonPress("CloneMirrorGroup", "CloneMoveToMirror");
             SymmetryWidget widget = FindSymmetryWidget();
             if (widget == null || !widget.IsMoveToMirrorArmed())
             {
                 Debug.LogError(
-                    "[MirrorControlsPanel.CloneMoveToMirror] CLONE skip unarmed");
+                    "[MirrorControlsPanel.CloneMoveToMirror] button=CloneMirrorGroup skip unarmed");
                 return;
             }
             CloneMirrorGroupCommand cloneCmd = new CloneMirrorGroupCommand();
@@ -1162,10 +1731,80 @@ namespace TiltBrush
             }
             SketchMemoryScript.m_Instance.PerformAndRecordCommand(cloneCmd);
             widget.ClearMoveToMirrorTo();
-            RefreshMirrorSaveSlotTints();
+            RefreshAllMirrorControlsTints();
         }
 
 
     } // Functions Complete
+    public class ArchitecturalStackCommand : BaseCommand
+    {
+        readonly Stroke[] m_Copies;
+        readonly SketchGroupTag m_Group;
+        public System.Collections.Generic.IList<Stroke> Copies
+        {
+            get
+            {
+                return m_Copies;
+            }
+        }
+
+        public ArchitecturalStackCommand(System.Collections.Generic.IList<Stroke> sources, TrTransform offsetCs, BaseCommand parent = null)
+            : base(parent)
+        {
+            var copies = new System.Collections.Generic.List<Stroke>();
+            for (int i = 0; i < sources.Count; ++i)
+            {
+                Stroke source = sources[i];
+                if (source == null || source.Canvas == null) continue;
+                copies.Add(SketchMemoryScript.m_Instance.DuplicateStroke(source, source.Canvas, offsetCs, absoluteScale: true));
+            }
+            m_Copies = copies.ToArray();
+            m_Group = App.GroupManager.NewUnusedGroup();
+        }
+
+        public override bool NeedsSave
+        {
+            get
+            {
+                return true;
+            }
+        }
+
+        protected override void OnRedo()
+        {
+            for (int i = 0; i < m_Copies.Length; ++i)
+            {
+                Stroke stroke = m_Copies[i];
+                stroke.Group = m_Group;
+                if (stroke.m_Type == Stroke.Type.BatchedBrushStroke && stroke.m_BatchSubset != null)
+                {
+                    stroke.m_BatchSubset.m_ParentBatch.EnableSubset(stroke.m_BatchSubset);
+                }
+                else if (stroke.m_Object != null)
+                {
+                    BaseBrushScript brush = stroke.m_Object.GetComponent<BaseBrushScript>();
+                    if (brush != null) brush.HideBrush(false);
+                }
+            }
+        }
+
+        protected override void OnUndo()
+        {
+            for (int i = 0; i < m_Copies.Length; ++i)
+            {
+                Stroke stroke = m_Copies[i];
+                stroke.Group = SketchGroupTag.None;
+                if (stroke.m_Type == Stroke.Type.BatchedBrushStroke && stroke.m_BatchSubset != null)
+                {
+                    stroke.m_BatchSubset.m_ParentBatch.DisableSubset(stroke.m_BatchSubset);
+                }
+                else if (stroke.m_Object != null)
+                {
+                    BaseBrushScript brush = stroke.m_Object.GetComponent<BaseBrushScript>();
+                    if (brush != null) brush.HideBrush(true);
+                }
+            }
+        }
+    }
 
 } //Namespace TiltBrush

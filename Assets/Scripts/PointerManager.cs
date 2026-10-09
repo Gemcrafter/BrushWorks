@@ -82,6 +82,13 @@ namespace TiltBrush
         [NonSerialized] public float m_WallpaperSymmetrySkewY = 0;
 
         [NonSerialized] public bool m_SymmetryLockedToController = false;
+        // Red tool. Stroke stays on the tangent through the stroke start.
+        [NonSerialized] public bool m_RingTangentLock = false;
+        // Purple tool. Stroke stays on the ring plane through the widget origin.
+        [NonSerialized] public bool m_RingPlaneLock = false;
+        bool m_HasPerpAnchor;
+        Vector3 m_PerpAnchor;
+        Vector3 m_PerpTangent;
 
         [Serializable]
         public struct ColorShiftComponentSetting
@@ -724,14 +731,15 @@ namespace TiltBrush
             bool endpointSnapActive = false;
             if (m_StraightEdgeEnabled && m_CurrentLineCreationState == LineCreationState.RecordingInput)
             {
-                m_StraightEdgeGuide.SnapEnabled =
-                    InputManager.Brush.GetCommand(InputManager.SketchCommands.MenuContextClick) &&
+                bool padSnap = InputManager.Brush.GetCommand(InputManager.SketchCommands.MenuContextClick) &&
                     SketchControlsScript.m_Instance.ShouldRespondToPadInput(InputManager.ControllerName.Num);
+                bool allowEndpointSnap = !m_RingTangentLock && !m_RingPlaneLock;
+                m_StraightEdgeGuide.SnapEnabled = padSnap && allowEndpointSnap;
 
                 // Snap endpoint while actively drawing
                 Vector3 pointerPosition = MainPointer.transform.position;
                 bool endpointSnapped = false;
-                if (StraightEdgeGuide.CurrentShape == StraightEdgeGuideScript.Shape.Line &&
+                if (allowEndpointSnap && StraightEdgeGuide.CurrentShape == StraightEdgeGuideScript.Shape.Line &&
                     m_StraightEdgeGuide.TryGetEndpointSnap(pointerPosition, out Vector3 snappedEndpoint))
                 {
                     // Get the origin to avoid snapping to it (which would create degenerate strokes)
@@ -744,7 +752,7 @@ namespace TiltBrush
                     }
                 }
 
-                endpointSnapActive = m_StraightEdgeGuide.UpdateTarget(pointerPosition, endpointSnapped);
+                endpointSnapActive = m_StraightEdgeGuide.UpdateTarget(pointerPosition, endpointSnapped, allowEndpointSnap);
             }
 
             // Preview endpoint snapping when not actively drawing
@@ -753,7 +761,8 @@ namespace TiltBrush
                 StraightEdgeGuide.CurrentShape == StraightEdgeGuideScript.Shape.Line)
             {
                 Vector3 pointerPosition = m_MainPointerData.m_Script.transform.position;
-                if (m_StraightEdgeGuide.TryGetEndpointSnap(pointerPosition, out Vector3 snappedPosition))
+                if (!m_RingTangentLock && !m_RingPlaneLock &&
+                    m_StraightEdgeGuide.TryGetEndpointSnap(pointerPosition, out Vector3 snappedPosition))
                 {
                     SetMainPointerPosition(snappedPosition);
                     endpointSnapActive = true;
@@ -1688,7 +1697,12 @@ namespace TiltBrush
             var previousMode = m_CurrentSymmetryMode;
             m_CurrentSymmetryMode = mode;
             m_SymmetryWidgetScript.SetMode(m_CurrentSymmetryMode);
-            m_SymmetryWidgetScript.Show(m_UseSymmetryWidget && SymmetryModeEnabled);
+            bool showGlass = m_UseSymmetryWidget && SymmetryModeEnabled;
+            if (!showGlass && MirrorControlsPanel.PanelIsOpen)
+            {
+                showGlass = true;
+            }
+            m_SymmetryWidgetScript.Show(showGlass);
             if (mode == SymmetryMode.MultiMirror)
             {
                 m_SymmetryWidgetScript.ApplyMultiMirrorTunnelDefault();
@@ -1949,6 +1963,7 @@ namespace TiltBrush
 
                 case SymmetryMode.MultiMirror:
                     {
+                        ApplyRingTangentLock();
                         TrTransform pointer0 = TrTransform.FromTransform(m_MainPointerData.m_Script.transform);
                         TrTransform tr;
 
@@ -2010,6 +2025,167 @@ namespace TiltBrush
                     }
                     break;
             }
+        }
+
+
+        public void ToggleRingTangentLock()
+        {
+            m_RingTangentLock = !m_RingTangentLock;
+            m_HasPerpAnchor = false;
+            Debug.LogError(
+                "[PointerManager.ToggleRingTangentLock] on=" + m_RingTangentLock +
+                " mode=" + m_CurrentSymmetryMode);
+        }
+
+        public void ToggleRingPlaneLock()
+        {
+            m_RingPlaneLock = !m_RingPlaneLock;
+            Debug.LogError(
+                "[PointerManager.ToggleRingPlaneLock] on=" + m_RingPlaneLock +
+                " mode=" + m_CurrentSymmetryMode);
+        }
+
+        void ApplyRingTangentLock()
+        {
+            if (m_MainPointerData == null || m_SymmetryWidget == null)
+            {
+                m_HasPerpAnchor = false;
+                return;
+            }
+
+            if (!m_RingTangentLock && !m_RingPlaneLock)
+            {
+                m_HasPerpAnchor = false;
+                return;
+            }
+
+            if (m_CustomSymmetryType == CustomSymmetryType.Wallpaper)
+            {
+                return;
+            }
+
+            Transform centerXf = m_SymmetryLockedToController ? MainPointer.transform : m_SymmetryWidget;
+            // Plane lock uses the copy spin axis. Tangent lock keeps the old forward axis.
+            Vector3 axis = m_RingTangentLock ? centerXf.forward : centerXf.up;
+            if (axis.sqrMagnitude < 1e-8f)
+            {
+                return;
+            }
+
+            axis.Normalize();
+            Vector3 center = centerXf.position;
+            Transform pointer = m_MainPointerData.m_Script.transform;
+            Vector3 onPlane = pointer.position - axis * Vector3.Dot(pointer.position - center, axis);
+            if (!m_RingTangentLock || !m_LineEnabled)
+            {
+                pointer.position = onPlane;
+                m_HasPerpAnchor = false;
+                return;
+            }
+
+            if (!m_HasPerpAnchor)
+            {
+                Vector3 radial = onPlane - center;
+                if (radial.sqrMagnitude < 1e-6f)
+                {
+                    pointer.position = center;
+                    return;
+                }
+
+                radial.Normalize();
+                m_PerpTangent = Vector3.Cross(axis, radial).normalized;
+                m_PerpAnchor = onPlane;
+                m_HasPerpAnchor = true;
+                Debug.LogError(
+                    "[PointerManager.ApplyRingTangentLock] anchor=" + m_PerpAnchor +
+                    " tangent=" + m_PerpTangent);
+            }
+
+            Vector3 delta = onPlane - m_PerpAnchor;
+            pointer.position = m_PerpAnchor + m_PerpTangent * Vector3.Dot(delta, m_PerpTangent);
+        }
+
+        public bool DrawSingleSpan(Vector3 fromRoom, Vector3 toRoom)
+        {
+            if (m_MainPointerData == null || (toRoom - fromRoom).sqrMagnitude < 1e-6f)
+            {
+                Debug.LogError("[PointerManager.DrawSingleSpan] skip empty");
+                return false;
+            }
+
+            BrushDescriptor brush = MainPointer.CurrentBrush;
+            CanvasScript canvas = App.Scene.ActiveCanvas;
+            if (brush == null || canvas == null)
+            {
+                Debug.LogError("[PointerManager.DrawSingleSpan] skip no brush");
+                return false;
+            }
+
+            Vector3 fromCs = canvas.transform.InverseTransformPoint(fromRoom);
+            Vector3 toCs = canvas.transform.InverseTransformPoint(toRoom);
+            Vector3 dir = toCs - fromCs;
+            Quaternion orient = dir.sqrMagnitude > 1e-8f
+                ? Quaternion.LookRotation(dir.normalized, Vector3.up)
+                : Quaternion.identity;
+            TrTransform start = TrTransform.TRS(fromCs, orient, 1f);
+            BaseBrushScript line = BaseBrushScript.Create(
+                canvas.transform, start, brush, MainPointer.GetCurrentColor(), MainPointer.BrushSizeAbsolute);
+            float step = Mathf.Max(line.GetSpawnInterval(1f), 0.01f);
+            int steps = Mathf.Clamp(Mathf.CeilToInt(dir.magnitude / step), 8, 64);
+            var points = new List<ControlPoint>(steps + 1);
+            int solids = 0;
+            for (int i = 0; i <= steps; ++i)
+            {
+                float t = i / (float)steps;
+                Vector3 pos = Vector3.Lerp(fromCs, toCs, t);
+                if (line.UpdatePosition_LS(TrTransform.TRS(pos, orient, 1f), 1f))
+                {
+                    solids++;
+                }
+                points.Add(new ControlPoint
+                {
+                    m_Pos = pos,
+                    m_Orient = orient,
+                    m_Pressure = 1f,
+                    m_TimestampMs = (uint)i
+                });
+            }
+            Debug.LogError("[PointerManager.DrawSingleSpan] samples=" + points.Count + " solids=" + solids + " size=" + MainPointer.BrushSizeAbsolute + " canvasScale=" + canvas.Pose.scale);
+            line.ApplyChangesToVisuals();
+
+            if (App.Config.m_UseBatchedBrushes && line.m_bCanBatch)
+            {
+                BatchSubset subset = line.FinalizeBatchedBrush();
+                SketchMemoryScript.m_Instance.MemorizeBatchedBrushStroke(
+                    subset, MainPointer.GetCurrentColor(), brush.m_Guid,
+                    MainPointer.BrushSizeAbsolute, line.StrokeScale, points,
+                    SketchMemoryScript.StrokeFlags.None, null,
+                    dir.magnitude, line.RandomSeed, true);
+            }
+            else
+            {
+                SketchMemoryScript.m_Instance.MemorizeBrushStroke(
+                    line, MainPointer.GetCurrentColor(), brush.m_Guid,
+                    MainPointer.BrushSizeAbsolute, line.StrokeScale, points,
+                    SketchMemoryScript.StrokeFlags.None, null, dir.magnitude);
+                line.FinalizeSolitaryBrush();
+                line = null;
+            }
+
+            if (line != null)
+            {
+                line.DestroyMesh();
+                Destroy(line.gameObject);
+            }
+
+            Debug.LogError(
+                "[PointerManager.DrawSingleSpan] room=" + Vector3.Distance(fromRoom, toRoom) +
+                " canvas=" + dir.magnitude);
+            if (m_SymmetryWidgetScript != null)
+            {
+                m_SymmetryWidgetScript.NoteArchitecturalStroke(SketchMemoryScript.m_Instance.MostRecentStroke);
+            }
+            return true;
         }
 
         public float GetCustomMirrorScale()
@@ -2523,5 +2699,4 @@ namespace TiltBrush
             }
         }
     }
-
 } // namespace TiltBrush

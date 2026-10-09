@@ -90,6 +90,7 @@ namespace TiltBrush
         [SerializeField] private bool m_LockOrientation = false;
         [Tooltip("Glass grab only. Block throw/spin about the plane normal.")]
         [SerializeField] private bool m_LockSpin = false;
+        bool m_KeepGlassShownAfterLoad;
 
 
         [Tooltip("Default facing for the live glass (Inspector and in-game orientation buttons).")]
@@ -112,6 +113,9 @@ namespace TiltBrush
         bool m_MoveToMirrorModeActive;
         int m_MoveToMirrorToIndex = -1;
         bool m_MoveToMirrorPickingTo;
+        bool m_ArchitectLineModeActive;
+        int m_ArchitecturalTargetIndex = -1;
+        bool m_ArchitecturalPickingTarget;
         bool m_MoveToMirrorBlockActivate;
         int m_TeleportDestIndex = 0;
         bool m_TeleportJumpPending;
@@ -204,6 +208,8 @@ namespace TiltBrush
         [SerializeField] Color m_SlotGuideHyperspace = new Color(0.85f, 0.65f, 0.15f, 1.0f);
         [Tooltip("World mark for a saved pose that matches the live glass only while the glass is off. Never drawn on top of a visible glass.")]
         [SerializeField] Color m_SlotGuideLatent = new Color(0.35f, 0.75f, 1.0f, 1.0f);
+        [Tooltip("World mark for the Architectural target. Not the Hyperspace mark.")]
+        [SerializeField] Color m_SlotGuideArchitectural = new Color(1.0f, 0.0f, 197f / 255f, 1.0f);
 
         [Header("SlotGuide display")]
         [Tooltip("Slot guide beam length vs live glass beams.")]
@@ -242,6 +248,37 @@ namespace TiltBrush
             {
                 return m_MoveToMirrorToIndex;
             }
+        }
+
+        public bool ArchitectLineModeActive
+        {
+            get
+            {
+                return m_ArchitectLineModeActive;
+            }
+        }
+
+        public bool ArchitecturalPickingTarget
+        {
+            get
+            {
+                return m_ArchitecturalPickingTarget;
+            }
+        }
+
+        public int ArchitecturalTargetIndex
+        {
+            get
+            {
+                return m_ArchitecturalTargetIndex;
+            }
+        }
+
+        public bool ArchitecturalTargetArmed()
+        {
+            return m_ArchitectLineModeActive
+                && m_ArchitecturalTargetIndex >= 0
+                && HasMirrorSaveSlot(m_ArchitecturalTargetIndex);
         }
 
         public bool MoveToMirrorPickingTo
@@ -1036,6 +1073,7 @@ namespace TiltBrush
             CaptureMirrorSlideDefaultGrabOrigin_SS();
             Debug.LogError(
                 "[SymmetryWidget.MirrorSlideDefault] begin lock=" + m_MirrorSlideDefault +
+                " spinLock=" + m_LockSpin +
                 " origin=" + m_MirrorSlideDefaultGrabOrigin_SS +
                 " euler=" + m_PoseAtGrabBegin_SS.rotation.eulerAngles);
         }
@@ -1051,6 +1089,20 @@ namespace TiltBrush
             Debug.LogError("MIRROR_AXIS: EndInteracting lock=" + m_MirrorSlideDefault);
 
             ApplyMirrorSlideDefaultOnRelease_SS();
+            if (m_LockSpin)
+            {
+                TrTransform held = App.Scene.AsScene[transform];
+                held.rotation = m_PoseAtGrabBegin_SS.rotation;
+                App.Scene.AsScene[transform] = held;
+                Debug.LogError(
+                    "[SymmetryWidget.OnUserEndInteracting] spinLock held rotation");
+            }
+            m_PoseAtGrabEnd_SS = SlotPoseWithoutScale(App.Scene.AsScene[transform]);
+            m_HasPoseAtGrabEnd = true;
+            Debug.LogError(
+                "[SymmetryWidget.OnUserEndInteracting] grab end pos=" +
+                m_PoseAtGrabEnd_SS.translation +
+                " euler=" + m_PoseAtGrabEnd_SS.rotation.eulerAngles);
             m_HasMirrorSlideDefaultGrabOrigin = false;
 
             // If this grab actually moved the mirror, offer undo back to grab-start pose.
@@ -1599,6 +1651,34 @@ namespace TiltBrush
                 m_LockOrientation);
         }
 
+        public bool KeepGlassShownAfterLoad
+        {
+            get
+            {
+                return m_KeepGlassShownAfterLoad;
+            }
+        }
+
+        public void ShowGlassForControlsPanel()
+        {
+            Show(true, false);
+            NoteAlignmentAgainstSlot(kTrueCenterSlotIndex);
+            Debug.LogError(
+                "[SymmetryWidget.ShowGlassForControlsPanel] button=MirrorControls open slot=1");
+        }
+
+        public void HideGlassForControlsPanel()
+        {
+            if (PointerManager.m_Instance != null &&
+                PointerManager.m_Instance.CurrentSymmetryMode != PointerManager.SymmetryMode.None)
+            {
+                return;
+            }
+            Show(false, false);
+            Debug.LogError(
+                "[SymmetryWidget.HideGlassForControlsPanel] panel closed mirror mode off");
+        }
+
         public void ToggleLockSpin()
         {
             m_LockSpin = !m_LockSpin;
@@ -1685,6 +1765,17 @@ namespace TiltBrush
 
         public const int kTrueCenterSlotIndex = 0;
 
+        public static string SlotLogLabel(int arrayIndex)
+        {
+            if (arrayIndex == kTrueCenterSlotIndex)
+            {
+                return "array=0 panel=1 TrueCenter";
+            }
+
+            return "array=" + arrayIndex + " panel=" + (arrayIndex + 1);
+        }
+
+
         public bool IsTrueCenterSlot(int index)
         {
             return index == kTrueCenterSlotIndex;
@@ -1717,6 +1808,84 @@ namespace TiltBrush
             return pose_SS;
         }
 
+        public bool TryGetMatchingSaveSlot(Transform live, out int slotIndex)
+        {
+            slotIndex = -1;
+            TrTransform liveScene = App.Scene.AsScene[live];
+            for (int i = 1; i < kMirrorSaveSlotCount; ++i)
+            {
+                if (m_MirrorSaveSlotOccupied == null || !m_MirrorSaveSlotOccupied[i])
+                {
+                    continue;
+                }
+
+                TrTransform saved = m_MirrorSaveSlotPose_SS[i];
+                if ((saved.translation - liveScene.translation).magnitude > 0.01f)
+                {
+                    continue;
+                }
+
+                if (Quaternion.Angle(saved.rotation, liveScene.rotation) > 1f)
+                {
+                    continue;
+                }
+
+                slotIndex = i;
+                return true;
+            }
+
+            return false;
+        }
+
+        public bool TryFindSlotAhead(Vector3 originRoom, Vector3 axisRoom, float heldTolerance,
+            out int slotIndex, out Vector3 slotRoom, out float ahead, out float offAxis)
+        {
+            slotIndex = -1;
+            slotRoom = originRoom;
+            ahead = 0f;
+            offAxis = 0f;
+            if (axisRoom.sqrMagnitude < 1e-8f)
+            {
+                return false;
+            }
+
+            TrTransform sceneFromRoom = App.Scene.Pose.inverse;
+            Vector3 originScene = sceneFromRoom * originRoom;
+            Vector3 axisScene = sceneFromRoom.rotation * axisRoom.normalized;
+            Quaternion liveScene = sceneFromRoom.rotation * transform.rotation;
+            float bestAhead = float.MaxValue;
+            for (int i = 0; i < kMirrorSaveSlotCount; ++i)
+            {
+                if (i == kTrueCenterSlotIndex || m_MirrorSaveSlotOccupied == null
+                    || i >= m_MirrorSaveSlotOccupied.Length || !m_MirrorSaveSlotOccupied[i])
+                {
+                    continue;
+                }
+
+                TrTransform saved = m_MirrorSaveSlotPose_SS[i];
+                if (Quaternion.Angle(saved.rotation, liveScene) > 1f)
+                {
+                    continue;
+                }
+
+                Vector3 delta = saved.translation - originScene;
+                float along = Vector3.Dot(delta, axisScene);
+                float off = Vector3.ProjectOnPlane(delta, axisScene).magnitude;
+                if (along <= 0.0001f || off > heldTolerance || along >= bestAhead)
+                {
+                    continue;
+                }
+
+                bestAhead = along;
+                slotIndex = i;
+                slotRoom = (App.Scene.Pose * saved).translation;
+                ahead = along;
+                offAxis = off;
+            }
+
+            return slotIndex >= 0;
+        }
+
         public void SaveMirrorSaveSlot(int index)
         {
             if (index < 0 || index >= kMirrorSaveSlotCount)
@@ -1727,15 +1896,32 @@ namespace TiltBrush
             {
                 EnsureTrueCenterSlot();
                 Debug.LogError(
-                    "MIRROR_SLOT: SAVE index=0 blocked (True Center reserved)");
+                    "MIRROR_SLOT: SAVE array=0 panel=1 TrueCenter blocked");
                 return;
             }
-            m_MirrorSaveSlotPose_SS[index] = SlotPoseWithoutScale(App.Scene.AsScene[transform]);
+            TrTransform pose = m_HasPoseAtGrabEnd
+                ? m_PoseAtGrabEnd_SS
+                : SlotPoseWithoutScale(App.Scene.AsScene[transform]);
+            m_HasPoseAtGrabEnd = false;
+            int duplicate = FindSlotWithSamePose(pose, index);
+            if (duplicate >= 0)
+            {
+                Debug.LogError(
+                    "MIRROR_SLOT: SAVE duplicate " + SlotLogLabel(index) +
+                    " already " + SlotLogLabel(duplicate) +
+                    " pos=" + pose.translation);
+                SetTeleportDest(duplicate);
+                NoteAlignmentAgainstSlot(duplicate);
+                return;
+            }
+            m_MirrorSaveSlotPose_SS[index] = pose;
             m_MirrorSaveSlotOccupied[index] = true;
             Debug.LogError(
-                "MIRROR_SLOT: SAVE index=" + index +
-                " pos=" + m_MirrorSaveSlotPose_SS[index].translation);
+                "MIRROR_SLOT: SAVE " + SlotLogLabel(index) +
+                " pos=" + pose.translation +
+                " euler=" + pose.rotation.eulerAngles);
             SetTeleportDest(index);
+            NoteAlignmentAgainstSlot(index);
         }
 
         public void RecallMirrorSaveSlot(int index)
@@ -1747,20 +1933,20 @@ namespace TiltBrush
             if (IsTrueCenterSlot(index))
             {
                 ApplyMirrorTrueCenter();
-                Debug.LogError("MIRROR_SLOT: RECALL index=0 True Center");
+                Debug.LogError("MIRROR_SLOT: RECALL array=0 panel=1 TrueCenter");
                 NoteAlignmentAgainstSlot(index);
                 SyncPreferredOrientationFromCurrentPose();
                 return;
             }
             if (!m_MirrorSaveSlotOccupied[index])
             {
-                Debug.LogError("MIRROR_SLOT: RECALL index=" + index + " empty");
+                Debug.LogError("MIRROR_SLOT: RECALL " + SlotLogLabel(index) + " empty");
                 return;
             }
             StashQuickReturnFromCurrent_SS();
             ApplyMirrorPose_SS(m_MirrorSaveSlotPose_SS[index]);
             Debug.LogError(
-                "MIRROR_SLOT: RECALL index=" + index +
+                "MIRROR_SLOT: RECALL " + SlotLogLabel(index) +
                 " pos=" + m_MirrorSaveSlotPose_SS[index].translation);
             SetTeleportDest(index);
             NoteAlignmentAgainstSlot(index);
@@ -1777,7 +1963,7 @@ namespace TiltBrush
             if (IsTrueCenterSlot(index))
             {
                 EnsureTrueCenterSlot();
-                Debug.LogError("MIRROR_SLOT: CLEAR index=0 blocked (True Center reserved)");
+                Debug.LogError("MIRROR_SLOT: CLEAR array=0 panel=1 TrueCenter blocked");
                 return;
             }
             if (!m_MirrorSaveSlotOccupied[index])
@@ -1788,7 +1974,7 @@ namespace TiltBrush
             m_LastClearedMirrorSaveSlotIndex = index;
             m_HasLastClearedMirrorSaveSlot = true;
             m_MirrorSaveSlotOccupied[index] = false;
-            Debug.LogError("MIRROR_SLOT: CLEAR index=" + index);
+            Debug.LogError("MIRROR_SLOT: CLEAR " + SlotLogLabel(index));
             NotifyMirrorSaveSlotCleared(index);
             HideSlotGuide(index);
             if (m_TeleportDestIndex == index)
@@ -1812,7 +1998,7 @@ namespace TiltBrush
             m_MirrorSaveSlotOccupied[index] = true;
             m_HasLastClearedMirrorSaveSlot = false;
             m_LastClearedMirrorSaveSlotIndex = -1;
-            Debug.LogError("MIRROR_SLOT: RESTORE last-cleared index=" + index);
+            Debug.LogError("MIRROR_SLOT: RESTORE last-cleared " + SlotLogLabel(index));
             return true;
         }
 
@@ -1834,7 +2020,7 @@ namespace TiltBrush
             SetTeleportDest(kTrueCenterSlotIndex);
             RefreshVisibleSlotGuides();
             SyncPreferredOrientationFromCurrentPose();
-            Debug.LogError("MIRROR_SLOT: TRUE CENTER applied slot1");
+            Debug.LogError("MIRROR_SLOT: TRUE CENTER applied array=0 panel=1");
         }
 
 
@@ -1974,8 +2160,10 @@ namespace TiltBrush
 
             if (App.Scene == null)
             {
+                Show(true, false);
+                NoteAlignmentAgainstSlot(kTrueCenterSlotIndex);
                 Debug.LogError(
-                    "[SymmetryWidget.SnapLiveAndUserToTrueCenterAfterLoad] glass only");
+                    "[SymmetryWidget.SnapLiveAndUserToTrueCenterAfterLoad] glass only shown");
                 return;
             }
 
@@ -2002,9 +2190,12 @@ namespace TiltBrush
                 bounds = SceneSettings.m_Instance.HardBoundsRadiusMeters_SS;
             }
             App.Scene.Pose = SketchControlsScript.MakeValidScenePose(sceneAfter, bounds);
+            m_KeepGlassShownAfterLoad = true;
+            Show(true, false);
+            NoteAlignmentAgainstSlot(kTrueCenterSlotIndex);
             Debug.LogError(
                 "[SymmetryWidget.SnapLiveAndUserToTrueCenterAfterLoad] dest=0 keepScale=" +
-                keepScale);
+                keepScale + " shown");
         }
 
         void ReportMirrorSlotBankProblem(string playerLine)
@@ -2107,8 +2298,7 @@ namespace TiltBrush
             m_MirrorSaveSlotPose_SS[dest] = legacy;
             m_MirrorSaveSlotOccupied[dest] = true;
             Debug.LogError(
-                "[SymmetryWidget.MigrateLegacySlot0ToFirstEmpty] MIRROR_SLOT: moved old slot1 -> index=" +
-                dest + " pos=" + legacy.translation);
+                "[SymmetryWidget.MigrateLegacySlot0ToFirstEmpty] MIRROR_SLOT: moved array=0 panel=1 TrueCenter -> " + SlotLogLabel(dest) + " pos=" + legacy.translation);
             return true;
         }
 
@@ -2166,8 +2356,37 @@ namespace TiltBrush
         }
 
 
+        bool m_HasPoseAtGrabEnd;
+        TrTransform m_PoseAtGrabEnd_SS;
         bool m_AlignmentAlert;
         int m_AlignmentSlot = -1;
+
+        int FindSlotWithSamePose(TrTransform pose, int ignoreIndex)
+        {
+            float posEps = 0.01f * App.METERS_TO_UNITS;
+            for (int i = 0; i < kMirrorSaveSlotCount; ++i)
+            {
+                if (i == ignoreIndex || !HasMirrorSaveSlot(i))
+                {
+                    continue;
+                }
+                TrTransform saved;
+                if (!TryGetMirrorSaveSlotPose(i, out saved))
+                {
+                    continue;
+                }
+                if ((saved.translation - pose.translation).sqrMagnitude > posEps * posEps)
+                {
+                    continue;
+                }
+                if (Quaternion.Angle(saved.rotation, pose.rotation) > 1.0f)
+                {
+                    continue;
+                }
+                return i;
+            }
+            return -1;
+        }
 
         public void NoteAlignmentAgainstSlot(int index)
         {
@@ -2175,7 +2394,7 @@ namespace TiltBrush
             bool match = IsMirrorSaveSlotMatchingCurrent(index);
             m_AlignmentAlert = !match;
             Debug.LogError(
-                "[SymmetryWidget.NoteAlignmentAgainstSlot] slot=" + index +
+                "[SymmetryWidget.NoteAlignmentAgainstSlot] " + SlotLogLabel(index) +
                 " match=" + match +
                 " alert=" + m_AlignmentAlert);
             ApplyLiveMirrorTint();
@@ -2452,6 +2671,10 @@ namespace TiltBrush
 
         public void EnterMoveToMirrorMode()
         {
+            if (m_ArchitectLineModeActive)
+            {
+                ExitArchitectLineMode();
+            }
             m_MoveToMirrorModeActive = true;
             if (App.Scene != null)
             {
@@ -3332,11 +3555,6 @@ namespace TiltBrush
             m_SlotGuideActive[index] = true;
 
             TrTransform applied = App.Scene.AsScene[guide.transform];
-            Debug.LogError(
-                "[SymmetryWidget.ShowSlotGuide] SLOTGUIDE: shown index=" + index +
-                " pos=" + pose_SS.translation +
-                " worldPos=" + guide.transform.position +
-                " " + DescribeMirrorAlignment(guide.transform.position));
         }
 
 
@@ -3442,6 +3660,367 @@ namespace TiltBrush
                     ShowSlotGuide(toIndex, m_SlotGuideHyperspace);
                 }
             }
+        }
+
+
+
+        bool m_ArchitecturalMultiTargetOn;
+        bool[] m_ArchitecturalMultiTarget = new bool[kMirrorSaveSlotCount];
+
+        public bool ArchitecturalMultiTargetOn
+        {
+            get
+            {
+                return LiveArchitectWidget().m_ArchitecturalMultiTargetOn;
+            }
+        }
+
+        public void SetArchitecturalMultiTarget(bool on)
+        {
+            SymmetryWidget live = LiveArchitectWidget();
+            if (live != this) { live.SetArchitecturalMultiTarget(on); return; }
+            m_ArchitecturalMultiTargetOn = on && m_ArchitectLineModeActive;
+            if (m_ArchitecturalMultiTargetOn)
+            {
+                if (m_ArchitecturalTargetIndex >= 0) HideSlotGuide(m_ArchitecturalTargetIndex);
+                m_ArchitecturalPickingTarget = false;
+                m_ArchitecturalTargetIndex = -1;
+                ClearArchitecturalConnect();
+            }
+            if (!m_ArchitecturalMultiTargetOn) ClearArchitecturalMultiTarget();
+            Debug.LogError("[SymmetryWidget.SetArchitecturalMultiTarget] on=" + m_ArchitecturalMultiTargetOn);
+            RefreshVisibleSlotGuides();
+        }
+
+        public void ClearArchitecturalMultiTarget()
+        {
+            SymmetryWidget live = LiveArchitectWidget();
+            if (live != this) { live.ClearArchitecturalMultiTarget(); return; }
+            for (int i = 0; i < m_ArchitecturalMultiTarget.Length; ++i)
+            {
+                if (m_ArchitecturalMultiTarget[i]) HideSlotGuide(i);
+                m_ArchitecturalMultiTarget[i] = false;
+            }
+            m_ArchitecturalMultiTargetOn = false;
+            RefreshVisibleSlotGuides();
+        }
+
+        public bool IsArchitecturalMultiTarget(int index)
+        {
+            SymmetryWidget live = LiveArchitectWidget();
+            if (live != this) return live.IsArchitecturalMultiTarget(index);
+            return index >= 0 && index < m_ArchitecturalMultiTarget.Length && m_ArchitecturalMultiTarget[index];
+        }
+
+        public bool ToggleArchitecturalMultiTargetSlot(int index)
+        {
+            SymmetryWidget live = LiveArchitectWidget();
+            if (live != this) return live.ToggleArchitecturalMultiTargetSlot(index);
+            if (!m_ArchitecturalMultiTargetOn || !HasMirrorSaveSlot(index) || IsMirrorSaveSlotMatchingCurrent(index))
+            {
+                Debug.LogError("[SymmetryWidget.ToggleArchitecturalMultiTargetSlot] reject " + SlotLogLabel(index));
+                return false;
+            }
+            m_ArchitecturalMultiTarget[index] = !m_ArchitecturalMultiTarget[index];
+            Debug.LogError("[SymmetryWidget.ToggleArchitecturalMultiTargetSlot] " + SlotLogLabel(index) + " on=" + m_ArchitecturalMultiTarget[index]);
+            RefreshVisibleSlotGuides();
+            return true;
+        }
+
+        public int[] CopyArchitecturalTargets()
+        {
+            SymmetryWidget live = LiveArchitectWidget();
+            if (live != this) return live.CopyArchitecturalTargets();
+            int count = 0;
+            for (int i = 0; i < kMirrorSaveSlotCount; ++i) if (m_ArchitecturalMultiTarget[i]) count++;
+            int[] result = new int[count];
+            int n = 0;
+            for (int i = 0; i < kMirrorSaveSlotCount; ++i) if (m_ArchitecturalMultiTarget[i]) result[n++] = i;
+            return result;
+        }
+
+        bool m_ArchitecturalConnectArmed;
+        bool[] m_ArchitecturalConnectPool = new bool[kMirrorSaveSlotCount];
+
+        public bool ArchitecturalConnectArmed
+        {
+            get
+            {
+                return LiveArchitectWidget().m_ArchitecturalConnectArmed;
+            }
+        }
+
+        public void ArmArchitecturalConnect(int[] slots)
+        {
+            SymmetryWidget live = LiveArchitectWidget();
+            if (live != this) { live.ArmArchitecturalConnect(slots); return; }
+            for (int i = 0; i < m_ArchitecturalConnectPool.Length; ++i) m_ArchitecturalConnectPool[i] = false;
+            int count = 0;
+            if (slots != null)
+            {
+                for (int i = 0; i < slots.Length; ++i)
+                {
+                    int index = slots[i];
+                    if (index < 0 || index >= m_ArchitecturalConnectPool.Length || !HasMirrorSaveSlot(index)) continue;
+                    m_ArchitecturalConnectPool[index] = true;
+                    count++;
+                }
+            }
+            m_ArchitecturalConnectArmed = count > 0;
+            Debug.LogError("[SymmetryWidget.ArmArchitecturalConnect] armed=" + m_ArchitecturalConnectArmed + " count=" + count);
+            for (int i = 0; i < m_ArchitecturalConnectPool.Length; ++i)
+            {
+                if (m_ArchitecturalConnectPool[i]) ShowSlotGuide(i, m_SlotGuideArchitectural);
+            }
+            RefreshVisibleSlotGuides();
+        }
+
+        public void ClearArchitecturalConnect()
+        {
+            SymmetryWidget live = LiveArchitectWidget();
+            if (live != this) { live.ClearArchitecturalConnect(); return; }
+            for (int i = 0; i < m_ArchitecturalConnectPool.Length; ++i)
+            {
+                if (m_ArchitecturalConnectPool[i]) HideSlotGuide(i);
+                m_ArchitecturalConnectPool[i] = false;
+            }
+            m_ArchitecturalConnectArmed = false;
+            RefreshVisibleSlotGuides();
+        }
+
+        public bool IsArchitecturalConnectPool(int index)
+        {
+            SymmetryWidget live = LiveArchitectWidget();
+            if (live != this) return live.IsArchitecturalConnectPool(index);
+            return m_ArchitecturalConnectArmed && index >= 0 && index < m_ArchitecturalConnectPool.Length && m_ArchitecturalConnectPool[index];
+        }
+
+        public int[] CopyArchitecturalConnectPool()
+        {
+            SymmetryWidget live = LiveArchitectWidget();
+            if (live != this) return live.CopyArchitecturalConnectPool();
+            int count = 0;
+            for (int i = 0; i < kMirrorSaveSlotCount; ++i) if (m_ArchitecturalConnectPool[i]) count++;
+            int[] result = new int[count];
+            int n = 0;
+            for (int i = 0; i < kMirrorSaveSlotCount; ++i) if (m_ArchitecturalConnectPool[i]) result[n++] = i;
+            return result;
+        }
+
+        readonly System.Collections.Generic.List<Stroke> m_ArchitecturalSourceStrokes = new System.Collections.Generic.List<Stroke>();
+        readonly System.Collections.Generic.List<Stroke> m_ArchitecturalCopies = new System.Collections.Generic.List<Stroke>();
+
+        public void BeginArchitecturalStrokeCapture()
+        {
+            SymmetryWidget live = LiveArchitectWidget();
+            if (live != this) { live.BeginArchitecturalStrokeCapture(); return; }
+            m_ArchitecturalSourceStrokes.Clear();
+            m_ArchitecturalCopies.Clear();
+        }
+
+        public void NoteArchitecturalStroke(Stroke stroke)
+        {
+            SymmetryWidget live = LiveArchitectWidget();
+            if (live != this) { live.NoteArchitecturalStroke(stroke); return; }
+            if (stroke != null && !m_ArchitecturalSourceStrokes.Contains(stroke)) m_ArchitecturalSourceStrokes.Add(stroke);
+        }
+
+        public System.Collections.Generic.List<Stroke> ArchitecturalSourceStrokes
+        {
+            get
+            {
+                return LiveArchitectWidget().m_ArchitecturalSourceStrokes;
+            }
+        }
+
+        public System.Collections.Generic.List<Stroke> ArchitecturalCopies
+        {
+            get
+            {
+                return LiveArchitectWidget().m_ArchitecturalCopies;
+            }
+        }
+
+        public int[] CopyOccupiedSlots()
+        {
+            int count = 0;
+            for (int i = 0; i < kMirrorSaveSlotCount; ++i) if (HasMirrorSaveSlot(i)) count++;
+            int[] result = new int[count];
+            int n = 0;
+            for (int i = 0; i < kMirrorSaveSlotCount; ++i) if (HasMirrorSaveSlot(i)) result[n++] = i;
+            return result;
+        }
+
+        public bool TryGetSlotRoom(int index, out Vector3 slotRoom)
+        {
+            slotRoom = Vector3.zero;
+            TrTransform pose;
+            if (!TryGetMirrorSaveSlotPose(index, out pose)) return false;
+            slotRoom = (App.Scene.Pose * pose).translation;
+            return true;
+        }
+
+        public void EnterArchitectLineMode()
+        {
+            SymmetryWidget live = LiveArchitectWidget();
+            if (live != this)
+            {
+                live.EnterArchitectLineMode();
+                return;
+            }
+            if (m_MoveToMirrorModeActive)
+            {
+                ExitMoveToMirrorMode();
+            }
+            m_ArchitectLineModeActive = true;
+            m_ArchitecturalPickingTarget = false;
+            m_ArchitecturalTargetIndex = -1;
+            Debug.LogError(
+                "[SymmetryWidget.EnterArchitectLineMode] on widget=" + GetEntityId());
+        }
+
+        SymmetryWidget LiveArchitectWidget()
+        {
+            if (PointerManager.m_Instance != null &&
+                PointerManager.m_Instance.SymmetryWidget != null)
+            {
+                return PointerManager.m_Instance.SymmetryWidget;
+            }
+            return this;
+        }
+
+        public void ExitArchitectLineMode()
+        {
+            SymmetryWidget live = LiveArchitectWidget();
+            if (live != this)
+            {
+                live.ExitArchitectLineMode();
+                return;
+            }
+            if (m_ArchitecturalTargetIndex >= 0)
+            {
+                HideSlotGuide(m_ArchitecturalTargetIndex);
+            }
+            ClearArchitecturalConnect();
+            m_ArchitectLineModeActive = false;
+            m_ArchitecturalPickingTarget = false;
+            m_ArchitecturalTargetIndex = -1;
+            ClearArchitecturalMultiTarget();
+            Debug.LogError("[SymmetryWidget.ExitArchitectLineMode] off");
+            RefreshVisibleSlotGuides();
+        }
+
+        public void BeginArchitecturalTarget()
+        {
+            SymmetryWidget live = LiveArchitectWidget();
+            if (live != this)
+            {
+                live.BeginArchitecturalTarget();
+                return;
+            }
+            if (!m_ArchitectLineModeActive)
+            {
+                return;
+            }
+            if (m_ArchitecturalPickingTarget)
+            {
+                m_ArchitecturalPickingTarget = false;
+                Debug.LogError("[SymmetryWidget.BeginArchitecturalTarget] cancel pick");
+                return;
+            }
+            if (m_ArchitecturalMultiTargetOn) ClearArchitecturalMultiTarget();
+            ClearArchitecturalConnect();
+            m_ArchitecturalPickingTarget = true;
+            Debug.LogError("[SymmetryWidget.BeginArchitecturalTarget] picking");
+        }
+
+        public void ClearArchitecturalTarget()
+        {
+            if (m_ArchitecturalTargetIndex >= 0)
+            {
+                HideSlotGuide(m_ArchitecturalTargetIndex);
+            }
+            m_ArchitecturalTargetIndex = -1;
+            m_ArchitecturalPickingTarget = false;
+            Debug.LogError("[SymmetryWidget.ClearArchitecturalTarget] cleared");
+            RefreshVisibleSlotGuides();
+        }
+
+        public void TryAssignArchitecturalTarget(int index)
+        {
+            SymmetryWidget live = LiveArchitectWidget();
+            if (live != this)
+            {
+                live.TryAssignArchitecturalTarget(index);
+                return;
+            }
+            if (!m_ArchitectLineModeActive || !m_ArchitecturalPickingTarget)
+            {
+                return;
+            }
+            if (!HasMirrorSaveSlot(index))
+            {
+                Debug.LogError("[SymmetryWidget.TryAssignArchitecturalTarget] reject empty " + SlotLogLabel(index));
+                return;
+            }
+            if (IsMirrorSaveSlotMatchingCurrent(index))
+            {
+                Debug.LogError("[SymmetryWidget.TryAssignArchitecturalTarget] reject live " + SlotLogLabel(index));
+                return;
+            }
+
+            int old = m_ArchitecturalTargetIndex;
+            m_ArchitecturalTargetIndex = index;
+            m_ArchitecturalPickingTarget = true;
+            if (old >= 0 && old != index)
+            {
+                HideSlotGuide(old);
+            }
+            TrTransform pose = m_MirrorSaveSlotPose_SS[index];
+            Debug.LogError(
+                "[SymmetryWidget.TryAssignArchitecturalTarget] button=MirrorSaveSlot " +
+                SlotLogLabel(index) +
+                " widget=" + GetEntityId() +
+                " live=" + live.GetEntityId() +
+                " pos=" + pose.translation +
+                " euler=" + pose.rotation.eulerAngles);
+            RefreshArchitecturalTargetGuide();
+        }
+
+        public TrTransform GetArchitecturalTargetPose_SS()
+        {
+            if (!ArchitecturalTargetArmed())
+            {
+                return TrTransform.identity;
+            }
+            return m_MirrorSaveSlotPose_SS[m_ArchitecturalTargetIndex];
+        }
+
+        public bool TryGetArchitecturalTargetRoom(out Vector3 slotRoom)
+        {
+            slotRoom = Vector3.zero;
+            if (!ArchitecturalTargetArmed())
+            {
+                return false;
+            }
+            TrTransform slotScene = m_MirrorSaveSlotPose_SS[m_ArchitecturalTargetIndex];
+            slotRoom = (App.Scene.Pose * slotScene).translation;
+            return true;
+        }
+
+        public void RefreshArchitecturalTargetGuide()
+        {
+            if (!ArchitecturalTargetArmed())
+            {
+                return;
+            }
+            int index = m_ArchitecturalTargetIndex;
+            if (LiveMirrorIsActive() && IsSlotGuideCoincidentWithLive(index))
+            {
+                HideSlotGuide(index);
+                return;
+            }
+            ShowSlotGuide(index, m_SlotGuideArchitectural);
         }
 
         public void ToggleSlotGuides()
@@ -3560,7 +4139,17 @@ namespace TiltBrush
                 tint = m_SlotGuideHyperspace;
                 return true;
             }
-            if (coincident)
+            if (m_ArchitecturalMultiTargetOn && IsArchitecturalMultiTarget(index))
+            {
+                tint = m_SlotGuideArchitectural;
+                return true;
+            }
+            if (IsArchitecturalConnectPool(index))
+            {
+                tint = m_SlotGuideArchitectural;
+                return true;
+            }
+            if (coincident && index == m_TeleportDestIndex)
             {
                 tint = m_SlotGuideLatent;
                 return true;
@@ -3802,6 +4391,7 @@ namespace TiltBrush
 
 
     } // Functions Completed
+
 
 
 } // namespace TiltBrush
