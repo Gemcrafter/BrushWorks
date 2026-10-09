@@ -21,6 +21,7 @@ MonoBehaviour:
   m_Tags:
   - default
   - audioreactive
+  - stock_basic
   m_Nondeterministic: 0
   m_Supersedes: {fileID: 11400000, guid: 4120e9061251b374d8fed28110fc9b70, type: 2}
   m_LooksIdentical: 1

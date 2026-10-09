@@ -22,6 +22,7 @@ MonoBehaviour:
   - experimental
   - hull
   - passthrough
+  - stock_advanced
   m_Nondeterministic: 0
   m_Supersedes: {fileID: 0}
   m_LooksIdentical: 0
