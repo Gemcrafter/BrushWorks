@@ -256,7 +256,16 @@ namespace TiltBrush
             bool removeFromSelection = SelectionManager.m_Instance.ShouldRemoveFromSelection();
 
             // Only select from the active layer
-            if (!removeFromSelection && (rGroup.Canvas != App.Scene.ActiveCanvas)) return true;
+            if (!removeFromSelection && (rGroup.Canvas != App.Scene.ActiveCanvas))
+            {
+                Debug.LogError(
+                    "[SelectionTool.HandleIntersectionWithBatchedStroke] reject canvas=" +
+                    (rGroup.Canvas != null ? rGroup.Canvas.name : "null") +
+                    " active=" +
+                    (App.Scene.ActiveCanvas != null ? App.Scene.ActiveCanvas.name : "null") +
+                    " group=" + (stroke != null ? stroke.Group.ToString() : "null"));
+                return true;
+            }
 
             if ((removeFromSelection && !isSelected) || (!removeFromSelection && isSelected))
             {
@@ -269,6 +278,11 @@ namespace TiltBrush
             }
 
             PlayModifyStrokeSound();
+
+            Debug.LogError(
+                "[SelectionTool.HandleIntersectionWithBatchedStroke] select group=" +
+                (stroke != null ? stroke.Group.ToString() : "null") +
+                " canvas=" + (rGroup.Canvas != null ? rGroup.Canvas.name : "null"));
 
             SketchMemoryScript.m_Instance.PerformAndRecordCommand(
                 new SelectCommand(new[] { stroke },

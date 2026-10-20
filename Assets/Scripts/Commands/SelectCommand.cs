@@ -151,6 +151,18 @@ namespace TiltBrush
             m_Strokes.AddRange(strokesGrouped);
             m_Strokes.AddRange(strokesNotGrouped);
 
+            if (strokes != null && strokes.Count > 0)
+            {
+                var resultGroups = new HashSet<int>();
+                for (int i = 0; i < m_Strokes.Count; ++i) resultGroups.Add(m_Strokes[i].Group.GetHashCode());
+                Debug.LogError(
+                    "[SelectCommand] clicked=" + strokes.Count +
+                    " result=" + m_Strokes.Count +
+                    " groups=" + resultGroups.Count +
+                    " ids=" + string.Join(",", resultGroups) +
+                    " deselect=" + deselect);
+            }
+
             m_Widgets = new List<GrabWidget>();
             m_Widgets.AddRange(widgetsGrouped);
             m_Widgets.AddRange(widgetsNotGrouped);

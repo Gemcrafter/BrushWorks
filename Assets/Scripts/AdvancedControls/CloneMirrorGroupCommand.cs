@@ -169,6 +169,11 @@ namespace TiltBrush
                 " widgets=" + m_CopiedWidgets.Count +
                 " valid=" + m_Valid +
                 " note=slotDeltaNotMultiMirrorAngle");
+            if (m_Valid && PointerManager.m_Instance != null
+                && PointerManager.m_Instance.SymmetryWidget != null)
+            {
+                PointerManager.m_Instance.SymmetryWidget.NoteAlignmentAgainstSlot(fromIndex);
+            }
         }
 
         public override bool NeedsSave

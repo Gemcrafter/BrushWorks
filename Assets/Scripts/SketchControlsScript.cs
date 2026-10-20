@@ -212,6 +212,12 @@ namespace TiltBrush
             SelectAllStrokes = 14001,
             InvertStrokeSelection = 14002,
             MirrorCopySelection = 14003,
+            CopyBack = 14004,
+            CopyRight = 14005,
+            CopyBelow = 14006,
+            CopyLeft = 14007,
+            CopyForward = 14008,
+            CopyUp = 14009,
 
         }
 
@@ -5091,6 +5097,24 @@ namespace TiltBrush
                 case GlobalCommands.InvertStrokeSelection:
                     SelectionManager.m_Instance.InvertStrokeSelection(App.ActiveCanvas);
                     break;
+                case GlobalCommands.CopyUp:
+                    SelectionManager.m_Instance.CopyUp();
+                    break;
+                case GlobalCommands.CopyBelow:
+                    SelectionManager.m_Instance.CopyBelow();
+                    break;
+                case GlobalCommands.CopyRight:
+                    SelectionManager.m_Instance.CopyRight();
+                    break;
+                case GlobalCommands.CopyLeft:
+                    SelectionManager.m_Instance.CopyLeft();
+                    break;
+                case GlobalCommands.CopyForward:
+                    SelectionManager.m_Instance.CopyForward();
+                    break;
+                case GlobalCommands.CopyBack:
+                    SelectionManager.m_Instance.CopyBack();
+                    break;
                 case GlobalCommands.AdvancedPanelsToggle:
                     m_PanelManager.ToggleAdvancedPanels();
                     // If we're now in basic mode, ensure we don't have advanced abilities.
@@ -5569,6 +5593,10 @@ namespace TiltBrush
             SaveLoadScript.m_Instance.ResetLastFilename();
             SelectionManager.m_Instance.RemoveFromSelection(false);
             PointerManager.m_Instance.ResetSymmetryToHome();
+            if (PointerManager.m_Instance.SymmetryWidget != null)
+            {
+                PointerManager.m_Instance.SymmetryWidget.ClearMirrorSaveSlotsForNewSketch();
+            }
             PointerManager.m_Instance.FinalizeLine(false, true);
             PointerManager.m_Instance.StraightEdgeGuide.ClearEndpointHistory();
             App.Scene.ResetLayers(notify: true);
@@ -5695,6 +5723,14 @@ namespace TiltBrush
                 case GlobalCommands.InvertSelection:
                 case GlobalCommands.InvertStrokeSelection:
                     return SelectionManager.m_Instance.HasSelection;
+                case GlobalCommands.CopyUp:
+                case GlobalCommands.CopyBelow:
+                case GlobalCommands.CopyRight:
+                case GlobalCommands.CopyLeft:
+                case GlobalCommands.CopyForward:
+                case GlobalCommands.CopyBack:
+                    return SelectionManager.m_Instance != null &&
+                        SelectionManager.m_Instance.HasSelection;
                 case GlobalCommands.FlipSelection:
                     return SelectionManager.m_Instance.HasSelection &&
                         PointerManager.m_Instance != null &&

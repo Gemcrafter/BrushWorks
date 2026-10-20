@@ -36,6 +36,15 @@ namespace TiltBrush
 
         // ---- Public types
 
+        public enum RingOrientation
+        {
+            Default,
+            HorizontalForward,
+            VerticalForward,
+            HorizontalSideways,
+            VerticalSideways
+        }
+
         public enum SymmetryMode
         {
             None,
@@ -71,6 +80,7 @@ namespace TiltBrush
 
         [NonSerialized] public CustomSymmetryType m_CustomSymmetryType = CustomSymmetryType.Point;
         [NonSerialized] public PointSymmetry.Family m_PointSymmetryFamily = PointSymmetry.Family.Cn;
+        [NonSerialized] public RingOrientation m_RingOrientation = RingOrientation.Default;
         [NonSerialized] public SymmetryGroup.R m_WallpaperSymmetryGroup = SymmetryGroup.R.p1;
         [NonSerialized] public int m_PointSymmetryOrder = 6;
         [NonSerialized] public int m_WallpaperSymmetryX = 2;
@@ -856,6 +866,11 @@ namespace TiltBrush
             for (int i = 0; i < m_RemoteUserPointers.Count; ++i)
             {
                 m_RemoteUserPointers[i].UpdatePointer();
+            }
+            if (m_SymmetryWidgetScript != null)
+            {
+                m_SymmetryWidgetScript.RefreshArchitecturalMarkers();
+                m_SymmetryWidgetScript.RefreshArchitecturalSequencePreview();
             }
         }
 
@@ -1853,10 +1868,22 @@ namespace TiltBrush
                     // 0 keeps the symmetry plane on the widget origin, same point as the regular mirror.
                     var pointSym = new PointSymmetry(m_PointSymmetryFamily, m_PointSymmetryOrder, 0f);
                     m_CustomMirrorMatrices = pointSym.matrices;
+                    Vector3 spin = RingSpinAxis(m_RingOrientation);
+                    float phase = RingPhase(m_RingOrientation);
+                    Quaternion axisFix = Quaternion.FromToRotation(Vector3.up, spin)
+                        * Quaternion.AngleAxis(phase, Vector3.up);
+                    Matrix4x4 axisMatrix = Matrix4x4.Rotate(axisFix);
+                    Matrix4x4 axisInverse = Matrix4x4.Rotate(Quaternion.Inverse(axisFix));
+                    for (int i = 0; i < m_CustomMirrorMatrices.Count; ++i)
+                    {
+                        m_CustomMirrorMatrices[i] = axisMatrix * m_CustomMirrorMatrices[i] * axisInverse;
+                    }
                     Debug.LogError(
                         "[PointerManager.CalculateMirrorMatrices] point planeOffset=0 family=" +
                         m_PointSymmetryFamily +
-                        " order=" + m_PointSymmetryOrder);
+                        " order=" + m_PointSymmetryOrder +
+                        " ring=" + m_RingOrientation +
+                        " spin=" + spin);
                     break;
             }
 
@@ -1879,6 +1906,39 @@ namespace TiltBrush
                 }
                 m_CustomMirrorMatrices[i] = m;
             }
+            if (m_SymmetryWidgetScript != null)
+            {
+                m_SymmetryWidgetScript.RefreshArchitecturalMarkers();
+                m_SymmetryWidgetScript.RefreshArchitecturalSequencePreview();
+            }
+        }
+
+        public void SetRingOrientation(RingOrientation orientation)
+        {
+            m_RingOrientation = orientation;
+            Debug.LogError("[PointerManager.SetRingOrientation] ring=" + orientation);
+            CalculateMirrors();
+        }
+
+        static Vector3 RingSpinAxis(RingOrientation orientation)
+        {
+            switch (orientation)
+            {
+                case RingOrientation.HorizontalForward:
+                case RingOrientation.HorizontalSideways:
+                    return Vector3.up;
+                case RingOrientation.VerticalSideways:
+                    return Vector3.right;
+                default:
+                    return Vector3.forward;
+            }
+        }
+
+        static float RingPhase(RingOrientation orientation)
+        {
+            return orientation == RingOrientation.HorizontalSideways
+                || orientation == RingOrientation.VerticalSideways
+                ? 90.0f : 0.0f;
         }
 
         public void CalculateMirrorColors()
@@ -2127,7 +2187,13 @@ namespace TiltBrush
             Quaternion orient = dir.sqrMagnitude > 1e-8f
                 ? Quaternion.LookRotation(dir.normalized, Vector3.up)
                 : Quaternion.identity;
-            TrTransform start = TrTransform.TRS(fromCs, orient, 1f);
+            float canvasScale = canvas.Pose.scale;
+            if (canvasScale < 1e-4f)
+            {
+                canvasScale = 1f;
+            }
+            float pointerToLocal = 1f / canvasScale;
+            TrTransform start = TrTransform.TRS(fromCs, orient, pointerToLocal);
             BaseBrushScript line = BaseBrushScript.Create(
                 canvas.transform, start, brush, MainPointer.GetCurrentColor(), MainPointer.BrushSizeAbsolute);
             float step = Mathf.Max(line.GetSpawnInterval(1f), 0.01f);
@@ -2138,7 +2204,7 @@ namespace TiltBrush
             {
                 float t = i / (float)steps;
                 Vector3 pos = Vector3.Lerp(fromCs, toCs, t);
-                if (line.UpdatePosition_LS(TrTransform.TRS(pos, orient, 1f), 1f))
+                if (line.UpdatePosition_LS(TrTransform.TRS(pos, orient, pointerToLocal), 1f))
                 {
                     solids++;
                 }
@@ -2150,7 +2216,12 @@ namespace TiltBrush
                     m_TimestampMs = (uint)i
                 });
             }
-            Debug.LogError("[PointerManager.DrawSingleSpan] samples=" + points.Count + " solids=" + solids + " size=" + MainPointer.BrushSizeAbsolute + " canvasScale=" + canvas.Pose.scale);
+            Debug.LogError(
+                "[PointerManager.DrawSingleSpan] samples=" + points.Count
+                + " solids=" + solids
+                + " sizePS=" + MainPointer.BrushSizeAbsolute
+                + " pointerToLocal=" + pointerToLocal
+                + " canvasScale=" + canvasScale);
             line.ApplyChangesToVisuals();
 
             if (App.Config.m_UseBatchedBrushes && line.m_bCanBatch)

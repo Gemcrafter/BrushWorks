@@ -33,6 +33,7 @@ namespace TiltBrush
         private SnapGrid3D m_SnapGridVisualization;
 
         [SerializeField] private SelectionWidget m_SelectionWidget;
+        [SerializeField] private float m_ThinCopyDistanceMeters = 0.15f;
 
         // These are up-to-date mappings from groups to strokes and widgets in the scene. Ie., strokes
         // and widgets that have been disabled will still be in these mappings. These mappings do not
@@ -1128,6 +1129,200 @@ namespace TiltBrush
                     includeGroupedWidgets: false));
         }
 
+        public void CopyUp()
+        {
+            CopySelectionAlongAxis(Vector3.up, "Up");
+        }
+        public void CopyBelow()
+        {
+            CopySelectionAlongAxis(Vector3.down, "Below");
+        }
+        public void CopyRight()
+        {
+            CopySelectionAlongAxis(Vector3.right, "Right");
+        }
+        public void CopyLeft()
+        {
+            CopySelectionAlongAxis(Vector3.left, "Left");
+        }
+        public void CopyForward()
+        {
+            CopySelectionAlongAxis(Vector3.back, "Forward");
+        }
+        public void CopyBack()
+        {
+            CopySelectionAlongAxis(Vector3.forward, "Back");
+        }
+
+        void CopySelectionAlongAxis(Vector3 axis, string name)
+        {
+            if (m_SelectedStrokes == null || m_SelectedStrokes.Count == 0)
+            {
+                Debug.LogError("[SelectionManager.CopySelectionAlongAxis] miss no strokes axis=" + name);
+                return;
+            }
+            var sources = new List<Stroke>();
+            foreach (Stroke stroke in m_SelectedStrokes)
+            {
+                if (stroke != null && stroke.IsGeometryEnabled && stroke.Canvas != null) sources.Add(stroke);
+            }
+            if (sources.Count == 0)
+            {
+                Debug.LogError("[SelectionManager.CopySelectionAlongAxis] miss no geometry axis=" + name);
+                return;
+            }
+            axis = (App.Scene.Pose.rotation * axis).normalized;
+            CanvasScript canvas = sources[0].m_PreviousCanvas != null
+                ? sources[0].m_PreviousCanvas
+                : sources[0].Canvas;
+            Vector3 axisCs = canvas.transform.InverseTransformDirection(axis);
+            float sourceFar = FurthestOnAxisCs(sources, axisCs);
+            float sourceNear = NearestOnAxisCs(sources, axisCs);
+            float extent = sourceFar - sourceNear;
+            Vector3 offsetCs;
+            if (extent > 0.01f)
+            {
+                offsetCs = axisCs.normalized * extent;
+            }
+            else
+            {
+                // Thin case: offset towards the user by a canvas-space distance.
+                // Stays uniform relative to the art when the scene scales.
+                Vector3 userPos = App.Scene.Pose.translation;
+                Vector3 center = Vector3.zero;
+                int n = 0;
+                for (int i = 0; i < sources.Count; ++i)
+                {
+                    Stroke s = sources[i];
+                    if (s == null || s.m_ControlPoints == null) continue;
+                    for (int p = 0; p < s.m_ControlPoints.Length; ++p)
+                    {
+                        center += s.m_ControlPoints[p].m_Pos;
+                        n++;
+                    }
+                }
+                if (n > 0) center /= n;
+                Vector3 centerWorld = canvas.transform.TransformPoint(center);
+                Vector3 towardUser = (userPos - centerWorld).normalized;
+                float dist = m_ThinCopyDistanceMeters * App.METERS_TO_UNITS * 10f;
+                offsetCs = canvas.transform.InverseTransformDirection(towardUser) * dist;
+            }
+            var command = new ArchitecturalStackCommand(sources, TrTransform.T(offsetCs));
+            SketchMemoryScript.m_Instance.PerformAndRecordCommand(command);
+            SketchMemoryScript.m_Instance.PerformAndRecordCommand(
+                new GroupStrokesAndWidgetsCommand(command.Copies, new GrabWidget[0], null));
+            ClearActiveSelection();
+            SketchMemoryScript.m_Instance.PerformAndRecordCommand(
+                new SelectCommand(command.Copies, widgets: null, SelectionTransform,
+                    deselect: false, initial: true, includeGroupedWidgets: false));
+            var sourceGroups = new HashSet<int>();
+            for (int i = 0; i < sources.Count; ++i) sourceGroups.Add(sources[i].Group.GetHashCode());
+            var copyGroups = new HashSet<int>();
+            bool shared = false;
+            for (int i = 0; i < command.Copies.Count; ++i)
+            {
+                int id = command.Copies[i].Group.GetHashCode();
+                copyGroups.Add(id);
+                if (sourceGroups.Contains(id)) shared = true;
+            }
+            int listedInSource = 0;
+            foreach (int id in sourceGroups)
+            {
+                foreach (Stroke stroke in StrokesInGroup(new SketchGroupTag((uint)id)))
+                {
+                    if (command.Copies.Contains(stroke)) listedInSource++;
+                }
+            }
+            int listedInCopy = 0;
+            foreach (int id in copyGroups)
+            {
+                foreach (Stroke stroke in StrokesInGroup(new SketchGroupTag((uint)id)))
+                {
+                    if (command.Copies.Contains(stroke)) listedInCopy++;
+                }
+            }
+            Debug.LogError(
+                "[SelectionManager.CopySelectionAlongAxis] axis=" + name +
+                " sources=" + sources.Count +
+                " sourceGroups=" + sourceGroups.Count +
+                " sourceIds=" + string.Join(",", sourceGroups) +
+                " copies=" + command.Copies.Count +
+                " copyGroups=" + copyGroups.Count +
+                " copyIds=" + string.Join(",", copyGroups) +
+                " shared=" + shared +
+                " listedInSource=" + listedInSource +
+                " listedInCopy=" + listedInCopy +
+                " selected=" + m_SelectedStrokes.Count +
+                " extent=" + extent +
+                " thin=" + (extent <= 0.01f) +
+                " canvasScale=" + canvas.Pose.scale +
+                " offsetCs=" + offsetCs);
+        }
+
+        static float FurthestOnAxisCs(List<Stroke> strokes, Vector3 axisCs)
+        {
+            float far = float.NegativeInfinity;
+            for (int i = 0; i < strokes.Count; ++i)
+            {
+                Stroke stroke = strokes[i];
+                if (stroke == null || !stroke.IsGeometryEnabled || stroke.m_ControlPoints == null) continue;
+                for (int p = 0; p < stroke.m_ControlPoints.Length; ++p)
+                {
+                    far = Mathf.Max(far, Vector3.Dot(stroke.m_ControlPoints[p].m_Pos, axisCs));
+                }
+            }
+            return far;
+        }
+
+        static float NearestOnAxisCs(List<Stroke> strokes, Vector3 axisCs)
+        {
+            float near = float.PositiveInfinity;
+            for (int i = 0; i < strokes.Count; ++i)
+            {
+                Stroke stroke = strokes[i];
+                if (stroke == null || !stroke.IsGeometryEnabled || stroke.m_ControlPoints == null) continue;
+                for (int p = 0; p < stroke.m_ControlPoints.Length; ++p)
+                {
+                    near = Mathf.Min(near, Vector3.Dot(stroke.m_ControlPoints[p].m_Pos, axisCs));
+                }
+            }
+            return near;
+        }
+
+        static float FurthestOnAxis(List<Stroke> strokes, Vector3 axis)
+        {
+            float far = float.NegativeInfinity;
+            for (int i = 0; i < strokes.Count; ++i)
+            {
+                Stroke stroke = strokes[i];
+                if (stroke == null || !stroke.IsGeometryEnabled || stroke.m_ControlPoints == null || stroke.Canvas == null) continue;
+                TrTransform pose = stroke.Canvas.Pose;
+                for (int p = 0; p < stroke.m_ControlPoints.Length; ++p)
+                {
+                    Vector3 room = pose.translation + pose.rotation * (stroke.m_ControlPoints[p].m_Pos * pose.scale);
+                    far = Mathf.Max(far, Vector3.Dot(room, axis));
+                }
+            }
+            return far;
+        }
+
+        static float NearestOnAxis(List<Stroke> strokes, Vector3 axis)
+        {
+            float near = float.PositiveInfinity;
+            for (int i = 0; i < strokes.Count; ++i)
+            {
+                Stroke stroke = strokes[i];
+                if (stroke == null || !stroke.IsGeometryEnabled || stroke.m_ControlPoints == null || stroke.Canvas == null) continue;
+                TrTransform pose = stroke.Canvas.Pose;
+                for (int p = 0; p < stroke.m_ControlPoints.Length; ++p)
+                {
+                    Vector3 room = pose.translation + pose.rotation * (stroke.m_ControlPoints[p].m_Pos * pose.scale);
+                    near = Mathf.Min(near, Vector3.Dot(room, axis));
+                }
+            }
+            return near;
+        }
+
         /// Groups all the selected strokes into a single new group unless they are already in a single
         /// group. In that case, ungroup them all.
         public void ToggleGroupSelectedStrokesAndWidgets()
@@ -1506,6 +1701,7 @@ namespace TiltBrush
         }
 
     }
+
 
 
 } // namespace TiltBrush

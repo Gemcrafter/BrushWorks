@@ -18,7 +18,8 @@ using UnityEngine;
 
 namespace TiltBrush
 {
-    /// Copies the current selection across the live SinglePlane mirror only.
+    /// Copies the current selection across the live mirror.
+    /// SinglePlane: one reflection. MultiMirror: every non-original slot, widget-centered.
     /// No identity clone, no ClipboardManager duplicate offset.
     public class MirrorCopySelectionCommand : BaseCommand
     {
@@ -26,16 +27,25 @@ namespace TiltBrush
         private List<Stroke> m_MirroredStrokes;
         private CanvasScript m_CurrentCanvas;
 
-        public int CreatedCount => m_MirroredStrokes.Count;
+        public int CreatedCount => m_MirroredStrokes == null ? 0 : m_MirroredStrokes.Count;
 
         public MirrorCopySelectionCommand(BaseCommand parent = null) : base(parent)
         {
             m_CurrentCanvas = App.ActiveCanvas;
             m_SourceStrokes = SelectionManager.m_Instance.SelectedStrokes.ToList();
             m_MirroredStrokes = new List<Stroke>();
+            Debug.LogError(
+                "[MirrorCopySelectionCommand] enter mode=" +
+                (PointerManager.m_Instance != null
+                    ? PointerManager.m_Instance.CurrentSymmetryMode.ToString() : "none") +
+                " sources=" + m_SourceStrokes.Count);
 
             if (m_SourceStrokes.Count == 0)
             {
+                Debug.LogError(
+                    "[MirrorCopySelectionCommand] skip noStrokes mode=" +
+                    (PointerManager.m_Instance != null
+                        ? PointerManager.m_Instance.CurrentSymmetryMode.ToString() : "none"));
                 return;
             }
 
@@ -46,20 +56,62 @@ namespace TiltBrush
                 return;
             }
 
-            // Global-space reflection only (same source as SinglePlane's non-identity entry).
-            TrTransform xfReflectGS =
-                PointerManager.m_Instance.SymmetryWidget.ReflectionPlane.ToTrTransform();
-
             // Match DuplicateSelectionCommand canvas-space conversion.
             TrTransform xfGSfromCS = App.Scene.SelectionCanvas.Pose;
             TrTransform xfCSfromGS = m_CurrentCanvas.Pose.inverse;
-            TrTransform xfReflectCS = xfCSfromGS * xfReflectGS * xfGSfromCS;
+            PointerManager pm = PointerManager.m_Instance;
 
-            foreach (var stroke in m_SourceStrokes)
+            if (pm.CurrentSymmetryMode == PointerManager.SymmetryMode.MultiMirror)
             {
-                m_MirroredStrokes.Add(
-                    SketchMemoryScript.m_Instance.DuplicateStroke(
-                        stroke, m_CurrentCanvas, xfReflectCS, absoluteScale: true));
+                // Same center and matrix rule as PointerManager.GetSymmetryTransformFor.
+                // Index 0 is the original. Copies use the live widget, not the controller.
+                if (pm.CustomMirrorMatrices == null || pm.CustomMirrorMatrices.Count < 2)
+                {
+                    Debug.LogError(
+                        "MirrorCopySelectionCommand: MultiMirror matrices=" +
+                        (pm.CustomMirrorMatrices == null ? -1 : pm.CustomMirrorMatrices.Count));
+                    return;
+                }
+
+                TrTransform xfCenter = TrTransform.FromTransform(pm.SymmetryWidget.transform);
+                int copies = 0;
+                for (int child = 1; child < pm.CustomMirrorMatrices.Count; ++child)
+                {
+                    (TrTransform, TrTransform) trAndFix =
+                        pm.TrFromMatrixWithFixedReflections(pm.CustomMirrorMatrices[child]);
+                    TrTransform tr = xfCenter * trAndFix.Item1 * xfCenter.inverse;
+                    TrTransform xfCopyCS = xfCSfromGS * tr * xfGSfromCS * trAndFix.Item2;
+                    foreach (var stroke in m_SourceStrokes)
+                    {
+                        m_MirroredStrokes.Add(
+                            SketchMemoryScript.m_Instance.DuplicateStroke(
+                                stroke, m_CurrentCanvas, xfCopyCS, absoluteScale: true));
+                    }
+                    copies++;
+                }
+
+                Debug.LogError(
+                    "[MirrorCopySelectionCommand] mode=MultiMirror sources=" +
+                    m_SourceStrokes.Count + " slots=" + copies +
+                    " strokes=" + m_MirroredStrokes.Count);
+            }
+            else
+            {
+                // Global-space reflection only (same source as SinglePlane's non-identity entry).
+                TrTransform xfReflectGS = pm.SymmetryWidget.ReflectionPlane.ToTrTransform();
+                TrTransform xfReflectCS = xfCSfromGS * xfReflectGS * xfGSfromCS;
+
+                foreach (var stroke in m_SourceStrokes)
+                {
+                    m_MirroredStrokes.Add(
+                        SketchMemoryScript.m_Instance.DuplicateStroke(
+                            stroke, m_CurrentCanvas, xfReflectCS, absoluteScale: true));
+                }
+
+                Debug.LogError(
+                    "[MirrorCopySelectionCommand] mode=" + pm.CurrentSymmetryMode +
+                    " sources=" + m_SourceStrokes.Count +
+                    " strokes=" + m_MirroredStrokes.Count);
             }
 
             GroupManager.MoveStrokesToNewGroups(m_MirroredStrokes, null);

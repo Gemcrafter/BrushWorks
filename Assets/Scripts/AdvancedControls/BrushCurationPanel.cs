@@ -670,6 +670,107 @@ namespace TiltBrush
             ActivatePalette(37);
         }
 
+
+        public void SetActivePalette38()
+        {
+            ActivatePalette(38);
+        }
+
+        public void SetActivePalette39()
+        {
+            ActivatePalette(39);
+        }
+
+        public void SetActivePalette40()
+        {
+            ActivatePalette(40);
+        }
+
+        public void SetActivePalette41()
+        {
+            ActivatePalette(41);
+        }
+
+        public void SetActivePalette42()
+        {
+            ActivatePalette(42);
+        }
+
+        public void SetActivePalette43()
+        {
+            ActivatePalette(43);
+        }
+
+        public void SetActivePalette44()
+        {
+            ActivatePalette(44);
+        }
+
+        public void SetActivePalette45()
+        {
+            ActivatePalette(45);
+        }
+
+        public void SetActivePalette46()
+        {
+            ActivatePalette(46);
+        }
+
+        public void SetActivePalette47()
+        {
+            ActivatePalette(47);
+        }
+
+        public void SetActivePalette48()
+        {
+            ActivatePalette(48);
+        }
+
+        public void SetActivePalette49()
+        {
+            ActivatePalette(49);
+        }
+
+        public void SetActivePalette50()
+        {
+            ActivatePalette(50);
+        }
+
+        public void SetActivePalette51()
+        {
+            ActivatePalette(51);
+        }
+
+        public void SetActivePalette52()
+        {
+            ActivatePalette(52);
+        }
+
+        public void SetActivePalette53()
+        {
+            ActivatePalette(53);
+        }
+
+        public void SetActivePalette54()
+        {
+            ActivatePalette(54);
+        }
+
+        public void SetActivePalette55()
+        {
+            ActivatePalette(55);
+        }
+
+        public void SetActivePalette56()
+        {
+            ActivatePalette(56);
+        }
+
+        public void SetActivePalette57()
+        {
+            ActivatePalette(57);
+        }
+
         public void ActivatePalette(int index)
         {
             if (index < 1)
