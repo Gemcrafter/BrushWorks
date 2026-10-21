@@ -151,7 +151,6 @@ namespace TiltBrush
             RefreshAxisLockButtonDescriptions();
             RefreshOrientationButtonDescriptions();
             RefreshAllMirrorControlsTints();
-            ShowSlot1IfMirrorModeOff();
         }
 
         static bool s_ControlsGlassShown;
@@ -165,6 +164,9 @@ namespace TiltBrush
             }
         }
 
+        static bool s_LoggedShowSlotNoManager;
+        static bool s_LoggedShowSlotNoWidget;
+
         void ShowSlot1IfMirrorModeOff()
         {
             if (s_ControlsGlassShown)
@@ -173,25 +175,31 @@ namespace TiltBrush
             }
             if (PointerManager.m_Instance == null)
             {
-                Debug.LogError("[MirrorControlsPanel.ShowSlot1IfMirrorModeOff] skip no PointerManager");
+                if (!s_LoggedShowSlotNoManager)
+                {
+                    s_LoggedShowSlotNoManager = true;
+                    Debug.LogWarning("[MirrorControlsPanel.ShowSlot1IfMirrorModeOff] skip no PointerManager");
+                }
                 return;
             }
+            // Mode on is the normal case while the panel is open. Do not log it.
             if (PointerManager.m_Instance.CurrentSymmetryMode != PointerManager.SymmetryMode.None)
             {
-                Debug.LogError(
-                    "[MirrorControlsPanel.ShowSlot1IfMirrorModeOff] skip mode=" +
-                    PointerManager.m_Instance.CurrentSymmetryMode);
                 return;
             }
             SymmetryWidget widget = FindSymmetryWidget();
             if (widget == null)
             {
-                Debug.LogError("[MirrorControlsPanel.ShowSlot1IfMirrorModeOff] skip no widget");
+                if (!s_LoggedShowSlotNoWidget)
+                {
+                    s_LoggedShowSlotNoWidget = true;
+                    Debug.LogWarning("[MirrorControlsPanel.ShowSlot1IfMirrorModeOff] skip no widget");
+                }
                 return;
             }
             s_PanelIsOpen = true;
             s_ControlsGlassShown = true;
-            Debug.LogError("[MirrorControlsPanel.ShowSlot1IfMirrorModeOff] show slot 1 mirror mode off");
+            Debug.Log("[MirrorControlsPanel.ShowSlot1IfMirrorModeOff] show slot 1 mirror mode off");
             widget.ShowGlassForControlsPanel();
         }
 

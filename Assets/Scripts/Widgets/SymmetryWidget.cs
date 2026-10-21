@@ -954,11 +954,6 @@ namespace TiltBrush
                     best = i;
                 }
             }
-            Debug.LogError(
-                "[SymmetryWidget.MirrorSnap] check start=" + startSlot +
-                " best=" + best +
-                " bestDist=" + bestDist +
-                " thresh=" + thresh);
             bool was = m_MirrorSnapFlash;
             m_MirrorSnapFlash = best >= 0;
             m_MirrorSnapCrossing = best;
@@ -1474,8 +1469,6 @@ namespace TiltBrush
         {
             if (!m_LiveMirrorTintEnabled)
             {
-                Debug.LogError(
-                    "[SymmetryWidget.ApplyLiveMirrorTint] skip enabled=False");
                 return;
             }
             Color tint = m_AlignmentAlert

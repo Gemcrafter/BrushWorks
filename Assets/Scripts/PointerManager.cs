@@ -185,6 +185,14 @@ namespace TiltBrush
         Vector3 m_LastLoggedMultiMirrorCenterEuler;
         bool m_LoggedMultiMirrorCenter;
 
+        bool m_LoggedMirrorMatrices;
+        CustomSymmetryType m_LastLoggedSymmetryType;
+        PointSymmetry.Family m_LastLoggedPointFamily;
+        int m_LastLoggedPointOrder;
+        RingOrientation m_LastLoggedRing;
+        Vector3 m_LastLoggedSpin;
+        int m_SuppressedMirrorMatrixLogs;
+
         // ---- Private member data
 
         private int m_NumActivePointers = 1;
@@ -1878,12 +1886,7 @@ namespace TiltBrush
                     {
                         m_CustomMirrorMatrices[i] = axisMatrix * m_CustomMirrorMatrices[i] * axisInverse;
                     }
-                    Debug.LogError(
-                        "[PointerManager.CalculateMirrorMatrices] point planeOffset=0 family=" +
-                        m_PointSymmetryFamily +
-                        " order=" + m_PointSymmetryOrder +
-                        " ring=" + m_RingOrientation +
-                        " spin=" + spin);
+                    LogMirrorMatricesIfChanged(spin);
                     break;
             }
 
@@ -1970,6 +1973,60 @@ namespace TiltBrush
                     pointer.m_Script.CopyInternals(m_Pointers[0].m_Script);
                 }
             }
+        }
+
+
+        void LogMirrorMatricesIfChanged(Vector3 spin)
+        {
+            int matrixCount = m_CustomMirrorMatrices != null ? m_CustomMirrorMatrices.Count : -1;
+            bool paramsChanged =
+                !m_LoggedMirrorMatrices ||
+                m_LastLoggedSymmetryType != m_CustomSymmetryType ||
+                m_LastLoggedPointFamily != m_PointSymmetryFamily ||
+                m_LastLoggedPointOrder != m_PointSymmetryOrder ||
+                m_LastLoggedRing != m_RingOrientation ||
+                (spin - m_LastLoggedSpin).sqrMagnitude > 1e-6f;
+
+            bool anomalous =
+                matrixCount <= 0 ||
+                m_PointSymmetryOrder < 2 ||
+                m_PointSymmetryOrder > 32 ||
+                spin.sqrMagnitude < 0.5f ||
+                spin.sqrMagnitude > 1.5f;
+
+            if (!paramsChanged && !anomalous)
+            {
+                m_SuppressedMirrorMatrixLogs++;
+                return;
+            }
+
+            string reason = !m_LoggedMirrorMatrices ? "initial" :
+                (anomalous && !paramsChanged ? "anomaly" : "changed");
+            string suppressed = m_SuppressedMirrorMatrixLogs > 0
+                ? " suppressed=" + m_SuppressedMirrorMatrixLogs
+                : "";
+            string anomaly = anomalous
+                ? " anomaly matrices=" + matrixCount +
+                  " order=" + m_PointSymmetryOrder +
+                  " spinLen=" + spin.magnitude.ToString("0.00")
+                : "";
+
+            Debug.Log(
+                "[PointerManager.CalculateMirrorMatrices] " + reason +
+                " planeOffset=0 family=" + m_PointSymmetryFamily +
+                " order=" + m_PointSymmetryOrder +
+                " ring=" + m_RingOrientation +
+                " spin=" + spin +
+                suppressed +
+                anomaly);
+
+            m_LoggedMirrorMatrices = true;
+            m_LastLoggedSymmetryType = m_CustomSymmetryType;
+            m_LastLoggedPointFamily = m_PointSymmetryFamily;
+            m_LastLoggedPointOrder = m_PointSymmetryOrder;
+            m_LastLoggedRing = m_RingOrientation;
+            m_LastLoggedSpin = spin;
+            m_SuppressedMirrorMatrixLogs = 0;
         }
 
         void LogMultiMirrorCenterIfChanged(TrTransform xfCenter)
