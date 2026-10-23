@@ -585,6 +585,8 @@ namespace TiltBrush
     public class CameraPathPositionKnotMetadata
     {
         public TrTransform Xf;
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public TrTransform CanvasXf;
         public float TangentMagnitude;
     }
 
@@ -592,6 +594,8 @@ namespace TiltBrush
     public class CameraPathRotationKnotMetadata
     {
         public TrTransform Xf;
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public TrTransform CanvasXf;
         public float PathTValue;
     }
 
@@ -599,6 +603,8 @@ namespace TiltBrush
     public class CameraPathSpeedKnotMetadata
     {
         public TrTransform Xf;
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public TrTransform CanvasXf;
         public float PathTValue;
         public float Speed;
     }
@@ -607,6 +613,8 @@ namespace TiltBrush
     public class CameraPathFovKnotMetadata
     {
         public TrTransform Xf;
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public TrTransform CanvasXf;
         public float PathTValue;
         public float Fov;
     }
@@ -619,7 +627,7 @@ namespace TiltBrush
         public CameraPathRotationKnotMetadata[] RotationKnots { get; set; }
         public CameraPathSpeedKnotMetadata[] SpeedKnots { get; set; }
         public CameraPathFovKnotMetadata[] FovKnots { get; set; }
-        // True when knot Xf values are canvas-local. Absent on older files.
+        // True when CanvasXf is present and holds the canvas-local transform. Absent on older files.
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
         public bool CanvasSpace { get; set; }
     }
@@ -942,5 +950,4 @@ namespace TiltBrush
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
         public TiltGaussianCapture[] GaussianCaptures { get; set; }
     }
-
 } // namespace TiltBrush

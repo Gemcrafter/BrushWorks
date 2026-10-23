@@ -663,12 +663,15 @@ namespace TiltBrush
                 GameObject go = Instantiate<GameObject>(
                     WidgetManager.m_Instance.CameraPathPositionKnotPrefab);
                 go.transform.parent = widget.transform;
-                ApplyKnotLocal(go, cameraPath.PathKnots[i].Xf, canvasSpace, savedScenePose);
+                ApplyKnotLocal(go, canvasSpace ? cameraPath.PathKnots[i].CanvasXf : cameraPath.PathKnots[i].Xf, canvasSpace, savedScenePose);
                 if (i == 0 || i == cameraPath.PathKnots.Length - 1)
                 {
+                    var used = canvasSpace
+                        ? cameraPath.PathKnots[i].CanvasXf.translation
+                        : cameraPath.PathKnots[i].Xf.translation;
                     Debug.LogWarning(
                         "[CameraPath] LOAD knot" + i +
-                        " storedXf=" + cameraPath.PathKnots[i].Xf.translation +
+                        " used=" + used +
                         " appliedLocal=" + go.transform.localPosition +
                         " resultWorld=" + go.transform.position);
                 }
@@ -698,7 +701,7 @@ namespace TiltBrush
                 GameObject go = Instantiate<GameObject>(
                     WidgetManager.m_Instance.CameraPathRotationKnotPrefab);
                 go.transform.parent = widget.transform;
-                ApplyKnotLocal(go, cameraPath.RotationKnots[i].Xf, canvasSpace, savedScenePose);
+                ApplyKnotLocal(go, canvasSpace ? cameraPath.RotationKnots[i].CanvasXf : cameraPath.RotationKnots[i].Xf, canvasSpace, savedScenePose);
 
                 CameraPathRotationKnot knot = go.GetComponent<CameraPathRotationKnot>();
                 knot.PathT = new PathT(cameraPath.RotationKnots[i].PathTValue);
@@ -718,7 +721,7 @@ namespace TiltBrush
                 GameObject go = Instantiate<GameObject>(
                     WidgetManager.m_Instance.CameraPathSpeedKnotPrefab);
                 go.transform.parent = widget.transform;
-                ApplyKnotLocal(go, cameraPath.SpeedKnots[i].Xf, canvasSpace, savedScenePose);
+                ApplyKnotLocal(go, canvasSpace ? cameraPath.SpeedKnots[i].CanvasXf : cameraPath.SpeedKnots[i].Xf, canvasSpace, savedScenePose);
 
                 CameraPathSpeedKnot knot = go.GetComponent<CameraPathSpeedKnot>();
 
@@ -737,7 +740,7 @@ namespace TiltBrush
                 GameObject go = Instantiate<GameObject>(
                     WidgetManager.m_Instance.CameraPathFovKnotPrefab);
                 go.transform.parent = widget.transform;
-                ApplyKnotLocal(go, cameraPath.FovKnots[i].Xf, canvasSpace, savedScenePose);
+                ApplyKnotLocal(go, canvasSpace ? cameraPath.FovKnots[i].CanvasXf : cameraPath.FovKnots[i].Xf, canvasSpace, savedScenePose);
 
                 CameraPathFovKnot knot = go.GetComponent<CameraPathFovKnot>();
 

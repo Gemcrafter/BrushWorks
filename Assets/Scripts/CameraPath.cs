@@ -1896,19 +1896,19 @@ namespace TiltBrush
             var fovKnots = FovKnots.Select(k => k.AsSerializable()).ToArray();
             for (int i = 0; i < pathKnots.Length; ++i)
             {
-                pathKnots[i].Xf = canvasPose.inverse * pathKnots[i].Xf;
+                pathKnots[i].CanvasXf = canvasPose.inverse * pathKnots[i].Xf;
             }
             for (int i = 0; i < rotKnots.Length; ++i)
             {
-                rotKnots[i].Xf = canvasPose.inverse * rotKnots[i].Xf;
+                rotKnots[i].CanvasXf = canvasPose.inverse * rotKnots[i].Xf;
             }
             for (int i = 0; i < spdKnots.Length; ++i)
             {
-                spdKnots[i].Xf = canvasPose.inverse * spdKnots[i].Xf;
+                spdKnots[i].CanvasXf = canvasPose.inverse * spdKnots[i].Xf;
             }
             for (int i = 0; i < fovKnots.Length; ++i)
             {
-                fovKnots[i].Xf = canvasPose.inverse * fovKnots[i].Xf;
+                fovKnots[i].CanvasXf = canvasPose.inverse * fovKnots[i].Xf;
             }
             return new CameraPathMetadata()
             {
@@ -2021,6 +2021,5 @@ namespace TiltBrush
             return points;
         }
     }
-
 
 } // namespace TiltBrush
