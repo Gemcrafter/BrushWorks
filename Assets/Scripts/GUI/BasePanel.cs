@@ -116,10 +116,10 @@ namespace TiltBrush
             StencilSettings = 20200,
             WhatsNewPanel = 20300,
             BlocksPromoPanel = 20301,
-            BrushCuration = 20304,
-            MirrorControls = 20303,
-            MultiMirrorSettings = 20305,
-            AdvancedLaunch = 20306,
+            BrushCuration = 14200,
+            MirrorControls = 14100,
+            MultiMirrorSettings = 14101,
+            AdvancedLaunch = 14300,
             AdminPanelViewOnly = 20302,
         }
 

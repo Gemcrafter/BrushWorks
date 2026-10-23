@@ -445,7 +445,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c8e10d2444cda164abca119c9ee7c933, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  m_PanelType: 20304
+  m_PanelType: 14200
   m_Collider: {fileID: 65686315866890560}
   m_Mesh: {fileID: 1129504163572690}
   m_Border: {fileID: 23528343814881480}

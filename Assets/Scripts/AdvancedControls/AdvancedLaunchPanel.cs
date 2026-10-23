@@ -18,7 +18,7 @@ using UnityEngine;
 namespace TiltBrush
 {
     /// Wand-fixed tear-away launcher for high-use panels and tools.
-    /// Prefab registration: PanelType AdvancedLaunch = 20306.
+    /// Prefab registration: PanelType AdvancedLaunch = 14300.
     public class AdvancedLaunchPanel : BasePanel
     {
         public enum MultiMirrorSettingsPlacement
