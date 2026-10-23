@@ -131,6 +131,41 @@ namespace TiltBrush
             }
         }
 
+
+        private CameraPathMetadata[] CaptureCameraPathsForSave()
+        {
+            var paths = MetadataUtils.GetCameraPaths();
+            if (paths == null || paths.Length == 0)
+            {
+                return paths;
+            }
+            var scenePose = Coords.AsRoom[App.Instance.m_SceneTransform];
+            var canvas = App.Scene.MainCanvas;
+            var canvasPose = (canvas != null) ? canvas.Pose : TrTransform.identity;
+            var first = paths[0].PathKnots;
+            string knotInfo = "noKnots";
+            if (first != null && first.Length > 0)
+            {
+                var k0 = first[0].Xf;
+                var k0Local = canvasPose.inverse * k0;
+                knotInfo = "knot0 world=" + k0.translation +
+                    " canvasLocal=" + k0Local.translation;
+                if (first.Length > 1)
+                {
+                    var kN = first[first.Length - 1].Xf;
+                    var kNLocal = canvasPose.inverse * kN;
+                    knotInfo += " knotLast world=" + kN.translation +
+                        " canvasLocal=" + kNLocal.translation;
+                }
+            }
+            Debug.LogWarning(
+                "[CameraPath] SAVE scenePose=" + scenePose +
+                " canvasPose=" + canvasPose +
+                " pathCount=" + paths.Length +
+                " " + knotInfo);
+            return paths;
+        }
+
         public SketchMetadata GetSketchMetadata()
         {
             // Note: This assumes Room space == Global space.
@@ -172,7 +207,7 @@ namespace TiltBrush
                 SourceId =
                     SaveLoadScript.m_Instance.TransferredSourceIdFrom(SaveLoadScript.m_Instance.SceneFile),
                 AssetId = SaveLoadScript.m_Instance.SceneFile.AssetId,
-                CameraPaths = MetadataUtils.GetCameraPaths(),
+                CameraPaths = CaptureCameraPathsForSave(),
                 Layers = MetadataUtils.GetLayers(),
                 SchemaVersion = SketchMetadata.kSchemaVersion,
                 ApplicationName = App.kAppDisplayName,
@@ -343,5 +378,6 @@ namespace TiltBrush
         }
 
     }
+
 
 } // namespace TiltBrush

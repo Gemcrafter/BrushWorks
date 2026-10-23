@@ -887,11 +887,12 @@ namespace TiltBrush
             m_loadingTiltLights = value;
         }
 
-        public void SetCameraPathDataFromTilt(CameraPathMetadata[] cameraPaths)
+        public void SetCameraPathDataFromTilt(CameraPathMetadata[] cameraPaths,
+            TrTransform savedScenePose)
         {
             for (int i = 0; i < cameraPaths.Length; ++i)
             {
-                CameraPathWidget.CreateFromSaveData(cameraPaths[i]);
+                CameraPathWidget.CreateFromSaveData(cameraPaths[i], savedScenePose);
             }
         }
 
@@ -1913,4 +1914,5 @@ namespace TiltBrush
         public int GetActiveWidgetIndex(StencilWidget widget) => ActiveStencilWidgets.WithIndex().First(x => x.item.WidgetScript == widget).index;
 
     }
+
 }

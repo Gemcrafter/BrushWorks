@@ -619,6 +619,9 @@ namespace TiltBrush
         public CameraPathRotationKnotMetadata[] RotationKnots { get; set; }
         public CameraPathSpeedKnotMetadata[] SpeedKnots { get; set; }
         public CameraPathFovKnotMetadata[] FovKnots { get; set; }
+        // True when knot Xf values are canvas-local. Absent on older files.
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public bool CanvasSpace { get; set; }
     }
 
     [Serializable]
@@ -939,4 +942,5 @@ namespace TiltBrush
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
         public TiltGaussianCapture[] GaussianCaptures { get; set; }
     }
+
 } // namespace TiltBrush

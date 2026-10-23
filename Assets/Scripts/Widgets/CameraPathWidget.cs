@@ -644,19 +644,34 @@ namespace TiltBrush
             return widget;
         }
 
+        // Overload for callers that are not loading a file (Lua recreate, duplicate, FromPath).
+        // Uses the current scene pose so world-space metadata converts correctly.
         static public CameraPathWidget CreateFromSaveData(CameraPathMetadata cameraPath)
         {
+            return CreateFromSaveData(cameraPath, App.Scene.Pose);
+        }
 
+        static public CameraPathWidget CreateFromSaveData(CameraPathMetadata cameraPath,
+            TrTransform savedScenePose)
+        {
             CameraPathWidget widget = CreateEmpty();
+            bool canvasSpace = cameraPath.CanvasSpace;
 
             // Add the path knots and set their tangent speed.
             for (int i = 0; i < cameraPath.PathKnots.Length; ++i)
             {
                 GameObject go = Instantiate<GameObject>(
                     WidgetManager.m_Instance.CameraPathPositionKnotPrefab);
-                go.transform.position = cameraPath.PathKnots[i].Xf.translation;
-                go.transform.rotation = cameraPath.PathKnots[i].Xf.rotation;
                 go.transform.parent = widget.transform;
+                ApplyKnotLocal(go, cameraPath.PathKnots[i].Xf, canvasSpace, savedScenePose);
+                if (i == 0 || i == cameraPath.PathKnots.Length - 1)
+                {
+                    Debug.LogWarning(
+                        "[CameraPath] LOAD knot" + i +
+                        " storedXf=" + cameraPath.PathKnots[i].Xf.translation +
+                        " appliedLocal=" + go.transform.localPosition +
+                        " resultWorld=" + go.transform.position);
+                }
 
                 CameraPathPositionKnot knot = go.GetComponent<CameraPathPositionKnot>();
                 knot.TangentMagnitude = cameraPath.PathKnots[i].TangentMagnitude;
@@ -682,9 +697,8 @@ namespace TiltBrush
             {
                 GameObject go = Instantiate<GameObject>(
                     WidgetManager.m_Instance.CameraPathRotationKnotPrefab);
-                go.transform.position = cameraPath.RotationKnots[i].Xf.translation;
-                go.transform.rotation = cameraPath.RotationKnots[i].Xf.rotation;
                 go.transform.parent = widget.transform;
+                ApplyKnotLocal(go, cameraPath.RotationKnots[i].Xf, canvasSpace, savedScenePose);
 
                 CameraPathRotationKnot knot = go.GetComponent<CameraPathRotationKnot>();
                 knot.PathT = new PathT(cameraPath.RotationKnots[i].PathTValue);
@@ -703,9 +717,8 @@ namespace TiltBrush
             {
                 GameObject go = Instantiate<GameObject>(
                     WidgetManager.m_Instance.CameraPathSpeedKnotPrefab);
-                go.transform.position = cameraPath.SpeedKnots[i].Xf.translation;
-                go.transform.rotation = cameraPath.SpeedKnots[i].Xf.rotation;
                 go.transform.parent = widget.transform;
+                ApplyKnotLocal(go, cameraPath.SpeedKnots[i].Xf, canvasSpace, savedScenePose);
 
                 CameraPathSpeedKnot knot = go.GetComponent<CameraPathSpeedKnot>();
 
@@ -723,9 +736,8 @@ namespace TiltBrush
             {
                 GameObject go = Instantiate<GameObject>(
                     WidgetManager.m_Instance.CameraPathFovKnotPrefab);
-                go.transform.position = cameraPath.FovKnots[i].Xf.translation;
-                go.transform.rotation = cameraPath.FovKnots[i].Xf.rotation;
                 go.transform.parent = widget.transform;
+                ApplyKnotLocal(go, cameraPath.FovKnots[i].Xf, canvasSpace, savedScenePose);
 
                 CameraPathFovKnot knot = go.GetComponent<CameraPathFovKnot>();
 
@@ -750,6 +762,14 @@ namespace TiltBrush
             widget.m_Path.SetKnotsActive(false);
             App.Switchboard.TriggerCameraPathCreated();
             return widget;
+        }
+
+        static void ApplyKnotLocal(GameObject go, TrTransform xf, bool canvasSpace,
+            TrTransform savedScenePose)
+        {
+            TrTransform localXf = canvasSpace ? xf : savedScenePose.inverse * xf;
+            go.transform.localPosition = localXf.translation;
+            go.transform.localRotation = localXf.rotation;
         }
 
         void OnDrawGizmosSelected()

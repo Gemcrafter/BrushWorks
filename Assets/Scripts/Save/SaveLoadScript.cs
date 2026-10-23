@@ -710,6 +710,15 @@ namespace TiltBrush
         /// All imported strokes are collapsed onto a fresh layer so existing
         /// layers remain untouched. Loading the same sketch multiple times
         /// will duplicate geometry on separate layers.
+        static void LogPathPose(string stage)
+        {
+            var canvas = App.Scene.MainCanvas;
+            Debug.LogWarning(
+                "[CameraPath] LOAD " + stage +
+                " scenePose=" + App.Scene.Pose +
+                " canvasPose=" + (canvas != null ? canvas.Pose.ToString() : "null"));
+        }
+
         public bool Load(SceneFileInfo fileInfo, bool bAdditive, int targetLayer, out List<Stroke> strokes)
         {
             Debug.LogError(
@@ -798,6 +807,7 @@ namespace TiltBrush
                     App.Instance.SetOdsCameraTransforms(jsonData.ThumbnailCameraTransformInRoomSpace,
                         jsonData.SceneTransformInRoomSpace);
                     App.Scene.Pose = jsonData.SceneTransformInRoomSpace;
+                    LogPathPose("afterPoseRestore");
                     App.Scene.ResetLayers(true);
                     LastThumbnail_SS = App.Scene.Pose.inverse *
                         jsonData.ThumbnailCameraTransformInRoomSpace;
@@ -930,14 +940,27 @@ namespace TiltBrush
                     if (PointerManager.m_Instance != null &&
                         PointerManager.m_Instance.SymmetryWidget != null)
                     {
+                        LogPathPose("beforeMirror");
                         PointerManager.m_Instance.SymmetryWidget.ImportMirrorSaveSlots(
                             jsonData.MirrorSaveSlots);
+                        LogPathPose("afterMirror");
                         Debug.LogError(
                             "[SaveLoadScript.Load] LOAD: ImportMirrorSaveSlots called");
                     }
                     if (jsonData.CameraPaths != null)
                     {
-                        WidgetManager.m_Instance.SetCameraPathDataFromTilt(jsonData.CameraPaths);
+                        var savedPose = jsonData.SceneTransformInRoomSpace;
+                        bool canvasSpace = jsonData.CameraPaths.Length > 0 &&
+                            jsonData.CameraPaths[0].CanvasSpace;
+                        var delta = App.Scene.Pose.translation - savedPose.translation;
+                        Debug.LogWarning(
+                            "[CameraPath] LOAD " + (canvasSpace ? "canvasSpace" : "convertedFromWorld") +
+                            " savedScenePose=" + savedPose +
+                            " currentScenePose=" + App.Scene.Pose +
+                            " translationDelta=" + delta +
+                            " pathCount=" + jsonData.CameraPaths.Length);
+                        WidgetManager.m_Instance.SetCameraPathDataFromTilt(
+                            jsonData.CameraPaths, savedPose);
                     }
                     if (fileInfo is GoogleDriveSketchSet.GoogleDriveFileInfo gdInfo)
                     {

@@ -1888,12 +1888,35 @@ namespace TiltBrush
 
         public CameraPathMetadata SerializeToCameraPathMetadata()
         {
+            var canvas = App.Scene.MainCanvas;
+            var canvasPose = (canvas != null) ? canvas.Pose : TrTransform.identity;
+            var pathKnots = PositionKnots.Select(k => k.AsSerializable()).ToArray();
+            var rotKnots = RotationKnots.Select(k => k.AsSerializable()).ToArray();
+            var spdKnots = SpeedKnots.Select(k => k.AsSerializable()).ToArray();
+            var fovKnots = FovKnots.Select(k => k.AsSerializable()).ToArray();
+            for (int i = 0; i < pathKnots.Length; ++i)
+            {
+                pathKnots[i].Xf = canvasPose.inverse * pathKnots[i].Xf;
+            }
+            for (int i = 0; i < rotKnots.Length; ++i)
+            {
+                rotKnots[i].Xf = canvasPose.inverse * rotKnots[i].Xf;
+            }
+            for (int i = 0; i < spdKnots.Length; ++i)
+            {
+                spdKnots[i].Xf = canvasPose.inverse * spdKnots[i].Xf;
+            }
+            for (int i = 0; i < fovKnots.Length; ++i)
+            {
+                fovKnots[i].Xf = canvasPose.inverse * fovKnots[i].Xf;
+            }
             return new CameraPathMetadata()
             {
-                PathKnots = PositionKnots.Select(k => k.AsSerializable()).ToArray(),
-                RotationKnots = RotationKnots.Select(k => k.AsSerializable()).ToArray(),
-                SpeedKnots = SpeedKnots.Select(k => k.AsSerializable()).ToArray(),
-                FovKnots = FovKnots.Select(k => k.AsSerializable()).ToArray(),
+                PathKnots = pathKnots,
+                RotationKnots = rotKnots,
+                SpeedKnots = spdKnots,
+                FovKnots = fovKnots,
+                CanvasSpace = true,
             };
         }
 
@@ -1998,5 +2021,6 @@ namespace TiltBrush
             return points;
         }
     }
+
 
 } // namespace TiltBrush
