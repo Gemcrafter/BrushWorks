@@ -45,7 +45,7 @@ namespace TiltBrush
         [Tooltip("X right, Y up, Z forward. Used when Button_MultiMirror opens the pad.")]
         [SerializeField] Vector3 m_MultiMirrorSettingsSpawnOffset = new Vector3(0.32f, -0.06f, 0.48f);
         [Tooltip("X right, Y up, Z forward. Used when Button_Labs opens the pad.")]
-        [SerializeField] Vector3 m_LabsSpawnOffset = new Vector3(0.16f, -0.20f, 0.25f);
+        [SerializeField] Vector3 m_LabsSpawnOffset = new Vector3(0.16f, -0.08f, 0.48f);
 
         [Header("Launch mode tints")]
         [Tooltip("Button_Mirror when single-plane Mirror is live.")]
@@ -241,6 +241,28 @@ namespace TiltBrush
             Debug.LogError(
                 "[AdvancedLaunchPanel.ToggleMultiMirrorFromLaunch] LAUNCH: opened settings");
             RefreshLaunchSymmetryTints();
+        }
+
+        public void ToggleLabsFromLaunch()
+        {
+            BasePanel labs = FindShowingPanel(BasePanel.PanelType.Labs);
+            if (labs != null)
+            {
+                labs.DismissThisPanel();
+                Debug.LogError(
+                    "[AdvancedLaunchPanel.ToggleLabsFromLaunch] LAUNCH: closed Labs");
+                return;
+            }
+
+            if (SketchControlsScript.m_Instance == null)
+            {
+                return;
+            }
+
+            SketchControlsScript.m_Instance.OpenPanelOfType(
+                BasePanel.PanelType.Labs, GetLaunchSpawnXf(BasePanel.PanelType.Labs));
+            Debug.LogError(
+                "[AdvancedLaunchPanel.ToggleLabsFromLaunch] LAUNCH: opened Labs");
         }
 
         static MultiMirrorSettingsPanel FindOpenMultiMirrorSettings()

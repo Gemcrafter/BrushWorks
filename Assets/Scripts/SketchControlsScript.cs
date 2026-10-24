@@ -5940,8 +5940,7 @@ namespace TiltBrush
                     "[SketchControlsScript.OpenPanelOfType] LAUNCH: no showing settings, opening");
             }
 
-            if (type == BasePanel.PanelType.MultiMirrorSettings
-                || type == BasePanel.PanelType.Labs)
+            if (type == BasePanel.PanelType.MultiMirrorSettings)
             {
                 trSpawnXf = AdvancedLaunchPanel.GetLaunchSpawnXf(type);
             }
