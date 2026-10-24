@@ -5824,7 +5824,7 @@ namespace TiltBrush
             if (type == BasePanel.PanelType.MultiMirrorSettings)
             {
                 MultiMirrorSettingsPanel[] existing =
-                    FindObjectsOfType<MultiMirrorSettingsPanel>();
+                    FindObjectsByType<MultiMirrorSettingsPanel>();
                 bool anyOpen = false;
                 for (int i = 0; i < existing.Length; ++i)
                 {
@@ -5940,9 +5940,29 @@ namespace TiltBrush
                     "[SketchControlsScript.OpenPanelOfType] LAUNCH: no showing settings, opening");
             }
 
-            if (type == BasePanel.PanelType.MultiMirrorSettings)
+            if (type == BasePanel.PanelType.MultiMirrorSettings
+                || type == BasePanel.PanelType.Labs)
             {
                 trSpawnXf = AdvancedLaunchPanel.GetLaunchSpawnXf(type);
+            }
+
+            if (type == BasePanel.PanelType.Labs)
+            {
+                string open = "";
+                BasePanel[] others = FindObjectsByType<BasePanel>();
+                for (int i = 0; i < others.Length; ++i)
+                {
+                    if (others[i] == null || others[i].Type == type) continue;
+                    PanelWidget w = others[i].GetComponent<PanelWidget>();
+                    if (w != null && w.Showing)
+                    {
+                        open += " " + others[i].Type + "@" + others[i].transform.position.ToString("F2");
+                    }
+                }
+                Debug.LogError(
+                    "[SketchControlsScript.OpenPanelOfType] LAUNCH: Labs spawn="
+                    + trSpawnXf.translation.ToString("F2")
+                    + " open=" + open);
             }
 
             m_PanelManager.OpenPanel(type, trSpawnXf, forced);
@@ -5997,7 +6017,7 @@ namespace TiltBrush
         {
             // Two map rows can CreatePanel the same type. GetPanelByType returns
             // the first, which may be the hidden Init clone.
-            BasePanel[] panels = FindObjectsOfType<BasePanel>();
+            BasePanel[] panels = FindObjectsByType<BasePanel>();
             for (int i = 0; i < panels.Length; ++i)
             {
                 BasePanel panel = panels[i];

@@ -13,6 +13,8 @@
 /TiltBrushProfile*
 /DevOptions.json
 /UserSettings
+/Support/Reports/
+/Profile_*.data.raw
 
 *.pyc
 .DS_Store

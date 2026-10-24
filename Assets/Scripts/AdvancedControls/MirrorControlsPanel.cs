@@ -233,7 +233,7 @@ namespace TiltBrush
 
         public static void CloseAllOpenInstances()
         {
-            MirrorControlsPanel[] panels = FindObjectsOfType<MirrorControlsPanel>();
+            MirrorControlsPanel[] panels = FindObjectsByType<MirrorControlsPanel>();
             for (int i = 0; i < panels.Length; ++i)
             {
                 if (panels[i] != null)
@@ -295,7 +295,7 @@ namespace TiltBrush
 
         public static void RefreshOpenOrientationIcons()
         {
-            MirrorControlsPanel[] panels = FindObjectsOfType<MirrorControlsPanel>();
+            MirrorControlsPanel[] panels = FindObjectsByType<MirrorControlsPanel>();
             for (int i = 0; i < panels.Length; ++i)
             {
                 if (panels[i] != null)
@@ -1149,7 +1149,7 @@ namespace TiltBrush
 
         public static void ResetModesForNewSketch()
         {
-            MirrorControlsPanel[] panels = FindObjectsOfType<MirrorControlsPanel>();
+            MirrorControlsPanel[] panels = FindObjectsByType<MirrorControlsPanel>();
             for (int i = 0; i < panels.Length; ++i)
             {
                 if (panels[i] == null) continue;
@@ -1160,7 +1160,7 @@ namespace TiltBrush
 
         public static void RefreshAllMirrorControlsTints()
         {
-            MirrorControlsPanel[] panels = FindObjectsOfType<MirrorControlsPanel>(true);
+            MirrorControlsPanel[] panels = FindObjectsByType<MirrorControlsPanel>(FindObjectsInactive.Include);
             for (int i = 0; i < panels.Length; ++i)
             {
                 if (panels[i] != null)

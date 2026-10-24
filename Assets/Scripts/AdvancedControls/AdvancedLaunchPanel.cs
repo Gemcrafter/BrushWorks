@@ -44,6 +44,8 @@ namespace TiltBrush
         [SerializeField] Vector3 m_BrushCurationSpawnOffset = new Vector3(-0.08f, -0.12f, 0.50f);
         [Tooltip("X right, Y up, Z forward. Used when Button_MultiMirror opens the pad.")]
         [SerializeField] Vector3 m_MultiMirrorSettingsSpawnOffset = new Vector3(0.32f, -0.06f, 0.48f);
+        [Tooltip("X right, Y up, Z forward. Used when Button_Labs opens the pad.")]
+        [SerializeField] Vector3 m_LabsSpawnOffset = new Vector3(0.16f, -0.20f, 0.25f);
 
         [Header("Launch mode tints")]
         [Tooltip("Button_Mirror when single-plane Mirror is live.")]
@@ -249,7 +251,7 @@ namespace TiltBrush
 
         public static TrTransform GetLaunchSpawnXf(BasePanel.PanelType type)
         {
-            AdvancedLaunchPanel launch = Object.FindObjectOfType<AdvancedLaunchPanel>();
+            AdvancedLaunchPanel launch = Object.FindAnyObjectByType<AdvancedLaunchPanel>();
             Vector3 offsetMeters = new Vector3(0f, 0f, 1.0f);
             if (launch != null)
             {
@@ -264,6 +266,10 @@ namespace TiltBrush
                 else if (type == BasePanel.PanelType.MultiMirrorSettings)
                 {
                     offsetMeters = launch.m_MultiMirrorSettingsSpawnOffset;
+                }
+                else if (type == BasePanel.PanelType.Labs)
+                {
+                    offsetMeters = launch.m_LabsSpawnOffset;
                 }
             }
 
@@ -344,7 +350,7 @@ namespace TiltBrush
 
         public static BasePanel FindShowingPanel(BasePanel.PanelType type)
         {
-            BasePanel[] panels = FindObjectsOfType<BasePanel>();
+            BasePanel[] panels = FindObjectsByType<BasePanel>();
             for (int i = 0; i < panels.Length; ++i)
             {
                 BasePanel panel = panels[i];
