@@ -197,6 +197,7 @@ namespace TiltBrush
             PanelSibling.WidgetSiblingBeginInteraction();
             PanelManager.m_Instance.RefreshConfiguredFlag();
             PanelManager.m_Instance.LastPanelInteractedWith = m_PanelSibling;
+            AdvancedLaunchPanel.LogGrabbedLaunchPanel(PanelSibling);
         }
 
         protected override void OnUserEndInteracting()

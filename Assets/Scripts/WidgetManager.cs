@@ -318,6 +318,8 @@ namespace TiltBrush
 
         public void Init()
         {
+            float sceneScale = App.Scene != null ? App.Scene.Pose.scale : 1.0f;
+            Debug.LogError("[WidgetManager.Init] LAUNCH: sceneScale=" + sceneScale.ToString("F3"));
             m_CameraPathTinter = gameObject.AddComponent<CameraPathTinter>();
 
             m_GrabWidgets = new List<GrabWidgetData>();
@@ -1914,5 +1916,4 @@ namespace TiltBrush
         public int GetActiveWidgetIndex(StencilWidget widget) => ActiveStencilWidgets.WithIndex().First(x => x.item.WidgetScript == widget).index;
 
     }
-
 }
