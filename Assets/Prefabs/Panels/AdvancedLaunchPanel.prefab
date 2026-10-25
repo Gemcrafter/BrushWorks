@@ -450,7 +450,7 @@ MonoBehaviour:
   m_MirrorControlsSpawnOffset: {x: 0.08, y: -0.08, z: 0.48}
   m_BrushCurationSpawnOffset: {x: -0.08, y: -0.12, z: 0.5}
   m_MultiMirrorSettingsSpawnOffset: {x: 0.32, y: -0.06, z: 0.48}
-  m_LabsSpawnOffset: {x: 0.16, y: -0.08, z: 0.48}
+  m_LabsSpawnOffset: {x: 0.16, y: -0.2, z: 0.48}
   m_MirrorActiveTint: {r: 1, g: 1, b: 1, a: 1}
   m_MultiMirrorActiveTint: {r: 0, g: 0.4, b: 0, a: 1}
   m_LaunchIdleTint: {r: 1, g: 1, b: 1, a: 1}

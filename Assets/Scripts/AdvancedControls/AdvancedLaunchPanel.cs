@@ -260,7 +260,7 @@ namespace TiltBrush
             }
 
             SketchControlsScript.m_Instance.OpenPanelOfType(
-                BasePanel.PanelType.Labs, GetLaunchSpawnXf(BasePanel.PanelType.Labs));
+                BasePanel.PanelType.Labs, GetLaunchSpawnXf(BasePanel.PanelType.Labs), forced: true);
             Debug.LogError(
                 "[AdvancedLaunchPanel.ToggleLabsFromLaunch] LAUNCH: opened Labs");
         }
@@ -273,6 +273,10 @@ namespace TiltBrush
 
         public static TrTransform GetLaunchSpawnXf(BasePanel.PanelType type)
         {
+            float sceneScale = App.Scene != null ? App.Scene.Pose.scale : 1.0f;
+            Debug.LogError(
+                "[AdvancedLaunchPanel.GetLaunchSpawnXf] LAUNCH: type=" + type
+                + " sceneScale=" + sceneScale.ToString("F3"));
             AdvancedLaunchPanel launch = Object.FindAnyObjectByType<AdvancedLaunchPanel>();
             Vector3 offsetMeters = new Vector3(0f, 0f, 1.0f);
             if (launch != null)
@@ -307,15 +311,18 @@ namespace TiltBrush
                 + head.right * (offsetMeters.x * units)
                 + head.up * (offsetMeters.y * units)
                 + head.forward * (offsetMeters.z * units);
-            Quaternion worldRot = Quaternion.LookRotation(
-                (head.position - worldPos).sqrMagnitude > 1e-6f
-                    ? (head.position - worldPos).normalized
-                    : -head.forward,
-                Vector3.up);
+            Vector3 faceDir = (head.position - worldPos).sqrMagnitude > 1e-6f
+                ? (head.position - worldPos).normalized
+                : -head.forward;
+            if (type == BasePanel.PanelType.Labs)
+            {
+                faceDir = -faceDir;
+            }
+            Quaternion worldRot = Quaternion.LookRotation(faceDir, Vector3.up);
             return TrTransform.TR(worldPos, worldRot);
         }
 
-        public static void LogReleasedLaunchPanel(BasePanel panel)
+        public static void LogGrabbedLaunchPanel(BasePanel panel)
         {
             if (panel == null)
             {
@@ -325,7 +332,8 @@ namespace TiltBrush
             BasePanel.PanelType type = panel.Type;
             if (type != BasePanel.PanelType.MirrorControls
                 && type != BasePanel.PanelType.BrushCuration
-                && type != BasePanel.PanelType.MultiMirrorSettings)
+                && type != BasePanel.PanelType.MultiMirrorSettings
+                && type != BasePanel.PanelType.Labs)
             {
                 return;
             }
@@ -355,6 +363,107 @@ namespace TiltBrush
                 glassScene = App.Scene.AsScene[glass.transform].translation;
             }
 
+            Vector3 launchMeters = Vector3.zero;
+            AdvancedLaunchPanel launch = Object.FindAnyObjectByType<AdvancedLaunchPanel>();
+            if (launch != null && units > 0.0001f)
+            {
+                Transform launchXf = launch.transform;
+                Vector3 launchDelta = panelPos - launchXf.position;
+                launchMeters = new Vector3(
+                    Vector3.Dot(launchDelta, launchXf.right) / units,
+                    Vector3.Dot(launchDelta, launchXf.up) / units,
+                    Vector3.Dot(launchDelta, launchXf.forward) / units);
+            }
+
+            float sceneScale = App.Scene != null ? App.Scene.Pose.scale : 1.0f;
+
+            Debug.LogError(
+                "[AdvancedLaunchPanel.Grab] LAUNCH: type=" + type
+                + " headW=" + headPos.ToString("F2")
+                + " headFwd=" + headFwd.ToString("F2")
+                + " panelW=" + panelPos.ToString("F2")
+                + " glassW=" + glassWorld.ToString("F2")
+                + " glassS=" + glassScene.ToString("F2")
+                + " headXYZ_m=" + localMeters.ToString("F2")
+                + " launchXYZ_m=" + launchMeters.ToString("F2")
+                + " sceneScale=" + sceneScale.ToString("F3"));
+        }
+
+        public static void LogReleasedLaunchPanel(BasePanel panel)
+        {
+            if (panel == null)
+            {
+                return;
+            }
+
+            BasePanel.PanelType type = panel.Type;
+            if (type != BasePanel.PanelType.MirrorControls
+                && type != BasePanel.PanelType.BrushCuration
+                && type != BasePanel.PanelType.MultiMirrorSettings
+                && type != BasePanel.PanelType.Labs)
+            {
+                return;
+            }
+
+            Transform head = Camera.main != null ? Camera.main.transform : null;
+            Vector3 headPos = head != null ? head.position : Vector3.zero;
+            Vector3 headFwd = head != null ? head.forward : Vector3.forward;
+            Vector3 panelPos = panel.transform.position;
+            float units = App.METERS_TO_UNITS;
+            Vector3 localMeters = Vector3.zero;
+            if (head != null && units > 0.0001f)
+            {
+                Vector3 delta = panelPos - headPos;
+                localMeters = new Vector3(
+                    Vector3.Dot(delta, head.right) / units,
+                    Vector3.Dot(delta, head.up) / units,
+                    Vector3.Dot(delta, head.forward) / units);
+            }
+
+            Vector3 glassWorld = Vector3.zero;
+            Vector3 glassScene = Vector3.zero;
+            if (PointerManager.m_Instance != null
+                && PointerManager.m_Instance.SymmetryWidget != null)
+            {
+                SymmetryWidget glass = PointerManager.m_Instance.SymmetryWidget;
+                glassWorld = glass.transform.position;
+                glassScene = App.Scene.AsScene[glass.transform].translation;
+            }
+
+            Vector3 launchMeters = Vector3.zero;
+            AdvancedLaunchPanel launch = Object.FindAnyObjectByType<AdvancedLaunchPanel>();
+            if (launch != null && units > 0.0001f)
+            {
+                Transform launchXf = launch.transform;
+                Vector3 launchDelta = panelPos - launchXf.position;
+                launchMeters = new Vector3(
+                    Vector3.Dot(launchDelta, launchXf.right) / units,
+                    Vector3.Dot(launchDelta, launchXf.up) / units,
+                    Vector3.Dot(launchDelta, launchXf.forward) / units);
+            }
+
+            string others = "";
+            BasePanel.PanelType[] refs = {
+                BasePanel.PanelType.MirrorControls,
+                BasePanel.PanelType.BrushCuration,
+                BasePanel.PanelType.MultiMirrorSettings,
+                BasePanel.PanelType.Labs
+            };
+            for (int i = 0; i < refs.Length; ++i)
+            {
+                if (refs[i] == type)
+                {
+                    continue;
+                }
+                BasePanel other = FindShowingPanel(refs[i]);
+                if (other != null)
+                {
+                    others += " " + refs[i] + "@" + other.transform.position.ToString("F2");
+                }
+            }
+
+            float sceneScale = App.Scene != null ? App.Scene.Pose.scale : 1.0f;
+
             Debug.LogError(
                 "[AdvancedLaunchPanel.Release] LAUNCH: type=" + type
                 + " headW=" + headPos.ToString("F2")
@@ -362,7 +471,10 @@ namespace TiltBrush
                 + " panelW=" + panelPos.ToString("F2")
                 + " glassW=" + glassWorld.ToString("F2")
                 + " glassS=" + glassScene.ToString("F2")
-                + " inspectorXYZ_m=" + localMeters.ToString("F2"));
+                + " headXYZ_m=" + localMeters.ToString("F2")
+                + " launchXYZ_m=" + launchMeters.ToString("F2")
+                + " sceneScale=" + sceneScale.ToString("F3")
+                + others);
         }
 
         public static bool IsLaunchPanelOpen(BasePanel.PanelType type)
