@@ -16,9 +16,8 @@ using System.Collections;
 using UnityEngine;
 
 namespace TiltBrush
-{
-    /// Mirror orientation, axis lock, pose save/recall/undo.
-    /// Prefab registration (PanelType, panel map, launch button) is Unity-side work.
+{    /// Mirror orientation, axis lock, pose save/recall/undo.
+     /// Prefab registration (PanelType, panel map, launch button) is Unity-side work.
     public class MirrorControlsPanel : BasePanel
     {
 
@@ -2524,6 +2523,7 @@ namespace TiltBrush
                     " guideUp=" + guide.transform.up.ToString("F2") +
                     " guideForward=" + guide.transform.forward.ToString("F2") +
                     " euler=" + guide.transform.eulerAngles.ToString("F1"));
+                SnapGuideToNearestCenterOrCrossing(guide, mirror);
             }
             else
             {
@@ -2539,6 +2539,75 @@ namespace TiltBrush
                 SketchMemoryScript.m_Instance.PerformAndRecordCommand(
                     new MoveWidgetCommand(guide, guide.LocalTransform, guide.CustomDimension));
             }
+        }
+
+        static void SnapGuideToNearestCenterOrCrossing(StencilWidget guide, SymmetryWidget mirror)
+        {
+            if (App.Scene == null)
+            {
+                return;
+            }
+            float thresh = 0.125f * App.METERS_TO_UNITS;
+            Vector3 guide_SS = App.Scene.AsScene[guide.transform].translation;
+            Vector3 live_SS = App.Scene.AsScene[mirror.transform].translation;
+
+            // Cube covers the glass in all three home facings. Snap if the
+            // guide's visual bounds intersect it, not only if the release
+            // point is near the center.
+            float glass = Mathf.Max(mirror.transform.lossyScale.x,
+                mirror.transform.lossyScale.y, mirror.transform.lossyScale.z);
+            Bounds glassCube = new Bounds(mirror.transform.position, Vector3.one * glass);
+            Renderer guideRenderer = guide.GetComponentInChildren<Renderer>();
+            bool intersects = guideRenderer != null &&
+                glassCube.Intersects(guideRenderer.bounds);
+
+            Vector3 best = live_SS;
+            float bestDist = Vector3.Distance(guide_SS, live_SS);
+            bool found = intersects || bestDist <= thresh;
+
+            for (int i = 0; i < SymmetryWidget.kMirrorSaveSlotCount; ++i)
+            {
+                if (i == SymmetryWidget.kTrueCenterSlotIndex) continue;
+                TrTransform slotPose;
+                if (!mirror.TryGetMirrorSaveSlotPose(i, out slotPose)) continue;
+                Vector3 slot = slotPose.translation;
+                Vector3[] crossings = new Vector3[]
+                {
+                    new Vector3(live_SS.x, live_SS.y, slot.z),
+                    new Vector3(live_SS.x, slot.y, live_SS.z),
+                    new Vector3(slot.x, live_SS.y, live_SS.z)
+                };
+                for (int c = 0; c < crossings.Length; ++c)
+                {
+                    float d = Vector3.Distance(guide_SS, crossings[c]);
+                    if (d < bestDist && d <= thresh)
+                    {
+                        bestDist = d;
+                        best = crossings[c];
+                        found = true;
+                    }
+                }
+            }
+
+            if (!found)
+            {
+                return;
+            }
+            TrTransform xf_SS = App.Scene.AsScene[guide.transform];
+            xf_SS.translation = best;
+            App.Scene.AsScene[guide.transform] = xf_SS;
+
+            // Mesh is at local Z = -0.1 for stroke layering. At large scale that
+            // is a visible world offset. Shift the origin so the mesh center
+            // lands on the target, not the origin.
+            Vector3 meshOffset_WS = guide.transform.TransformVector(new Vector3(0f, 0f, -0.1f));
+            guide.transform.position -= meshOffset_WS;
+
+            Debug.LogError(
+                "[MirrorControlsPanel.SnapGuideToNearestCenterOrCrossing] to=" +
+                best.ToString("F2") + " dist=" + bestDist.ToString("F3") +
+                " cube=" + intersects +
+                " meshShift=" + meshOffset_WS.magnitude.ToString("F3"));
         }
 
         public void SummonLiveMirror()
@@ -2691,4 +2760,3 @@ namespace TiltBrush
     }
 
 } //Namespace TiltBrush
-
