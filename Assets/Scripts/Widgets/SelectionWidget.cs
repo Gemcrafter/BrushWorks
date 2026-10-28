@@ -626,6 +626,22 @@ namespace TiltBrush
                 " canvas.pos=" + xf.translation +
                 " canvas.scale=" + xf.scale);
             base.OnUserEndInteracting();
+            SnapSelectedPlaneGuides();
+        }
+
+        void SnapSelectedPlaneGuides()
+        {
+            if (!MirrorControlsPanel.GuideLockActive || SelectionManager.m_Instance == null)
+            {
+                return;
+            }
+            foreach (StencilWidget guide in SelectionManager.m_Instance.SelectedWidgets.OfType<StencilWidget>())
+            {
+                if (guide != null && guide.Type == StencilType.Plane)
+                {
+                    MirrorControlsPanel.TrySnapPlaneGuide(guide);
+                }
+            }
         }
 
         protected override IEnumerable<StencilWidget> GetStencilsToIgnore()

@@ -156,6 +156,14 @@ namespace TiltBrush
             return clone;
         }
 
+        void TryGuideLockSnap()
+        {
+            if (Type == StencilType.Plane)
+            {
+                MirrorControlsPanel.TrySnapPlaneGuide(this);
+            }
+        }
+
         // Given a pos, find the closest position and surface normal of the stencil widget's collider.
         //   - surfacePos is the closest position on the surface, but in the case of ambiguity, will
         //     return a position most appropriate for the user experience.
@@ -293,6 +301,7 @@ namespace TiltBrush
             {
                 Shader.SetGlobalFloat("_UserIsInteractingWithStencilWidget", 0.0f);
             }
+            TryGuideLockSnap();
         }
 
         public override void RegisterHighlight()

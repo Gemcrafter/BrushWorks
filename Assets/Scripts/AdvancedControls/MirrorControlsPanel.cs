@@ -1420,6 +1420,14 @@ namespace TiltBrush
                         active ? MirrorControlsMoveToMirrorToTint : MirrorControlsInactiveTint);
                     continue;
                 }
+                if (name == "GuideLock")
+                {
+                    active = m_GuideLockActive;
+                    ForceMirrorControlsPanelButtonTint(
+                        toggles[i],
+                        active ? MirrorControlsMoveToMirrorToTint : MirrorControlsInactiveTint);
+                    continue;
+                }
 
                 // --- Existing mirror controls ---
                 if (name == "ClearSavedMirror")
@@ -2459,6 +2467,78 @@ namespace TiltBrush
             }
             widget.ToggleLateralLock();
             RefreshAllMirrorControlsTints();
+        }
+
+        bool m_GuideLockActive;
+        public static bool GuideLockActive { get; private set; }
+
+        public void ToggleGuideLock()
+        {
+            LogButtonPress("GuideLock", "ToggleGuideLock");
+            m_GuideLockActive = !m_GuideLockActive;
+            GuideLockActive = m_GuideLockActive;
+            RefreshAllMirrorControlsTints();
+        }
+
+        public static void TrySnapPlaneGuide(StencilWidget guide)
+        {
+            Debug.LogError(
+                "[MirrorControlsPanel.TrySnapPlaneGuide] enter mode=" + GuideLockActive +
+                " guide=" + (guide != null) +
+                " type=" + (guide != null ? guide.Type.ToString() : "null"));
+            if (!GuideLockActive || guide == null || guide.Type != StencilType.Plane)
+            {
+                return;
+            }
+
+            SymmetryWidget mirror = FindSymmetryWidget();
+            bool hasLive = mirror != null && mirror.gameObject.activeInHierarchy;
+            Debug.LogError(
+                "[MirrorControlsPanel.TrySnapPlaneGuide] mirror=" + (mirror != null) +
+                " active=" + hasLive +
+                " mode=" + (PointerManager.m_Instance != null
+                    ? PointerManager.m_Instance.CurrentSymmetryMode.ToString()
+                    : "null"));
+
+            if (hasLive)
+            {
+                // PlaneStencil lies in local XY. Surface normal is local -Z.
+                // Put local Z on the mirror normal and local Y on the mirror up
+                // so the grid can slide onto the mirror.
+                Vector3 planeNormal = mirror.transform.right;
+                if (planeNormal.sqrMagnitude < 1e-8f)
+                {
+                    planeNormal = Vector3.right;
+                }
+                planeNormal.Normalize();
+                Vector3 planeUp = mirror.transform.up;
+                if (planeUp.sqrMagnitude < 1e-8f ||
+                    Mathf.Abs(Vector3.Dot(planeUp, planeNormal)) > 0.99f)
+                {
+                    planeUp = Vector3.up;
+                }
+                guide.transform.rotation = Quaternion.LookRotation(planeNormal, planeUp);
+                Debug.LogError(
+                    "[MirrorControlsPanel.TrySnapPlaneGuide] mirrorRight=" +
+                    mirror.transform.right.ToString("F2") +
+                    " guideUp=" + guide.transform.up.ToString("F2") +
+                    " guideForward=" + guide.transform.forward.ToString("F2") +
+                    " euler=" + guide.transform.eulerAngles.ToString("F1"));
+            }
+            else
+            {
+                // No live mirror: flat, normal up, grid axes along world X/Z.
+                guide.transform.rotation = Quaternion.LookRotation(Vector3.up, Vector3.forward);
+                Debug.LogError(
+                    "[MirrorControlsPanel.TrySnapPlaneGuide] no live mirror; flat euler=" +
+                    guide.transform.eulerAngles.ToString("F1"));
+            }
+
+            if (SketchMemoryScript.m_Instance != null)
+            {
+                SketchMemoryScript.m_Instance.PerformAndRecordCommand(
+                    new MoveWidgetCommand(guide, guide.LocalTransform, guide.CustomDimension));
+            }
         }
 
         public void SummonLiveMirror()
