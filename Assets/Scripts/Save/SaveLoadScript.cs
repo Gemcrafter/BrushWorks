@@ -529,78 +529,93 @@ namespace TiltBrush
             SceneFileInfo fileInfo, bool selectedOnly,
             bool bNotify = true, SketchSnapshot snapshot = null)
         {
-            // Cancel any pending transfers of this file.
-            var cancelTask = App.DriveSync.CancelTransferAsync(fileInfo.FullPath);
-
-            bool newFile = !fileInfo.Exists;
-
-            if (snapshot == null)
+            try
             {
-                IEnumerator<Timeslice> timeslicedConstructor;
-                snapshot = CreateSnapshotWithIcons(out timeslicedConstructor, selectedOnly);
-                if (App.CurrentState != App.AppState.Reset)
+                // Cancel any pending transfers of this file.
+                var cancelTask = App.DriveSync.CancelTransferAsync(fileInfo.FullPath);
+
+                bool newFile = !fileInfo.Exists;
+
+                if (snapshot == null)
                 {
-                    App.Instance.SetDesiredState(App.AppState.Saving);
+                    IEnumerator<Timeslice> timeslicedConstructor;
+                    snapshot = CreateSnapshotWithIcons(out timeslicedConstructor, selectedOnly);
+                    if (App.CurrentState != App.AppState.Reset)
+                    {
+                        App.Instance.SetDesiredState(App.AppState.Saving);
+                    }
+                    while (timeslicedConstructor.MoveNext())
+                    {
+                        yield return timeslicedConstructor.Current;
+                    }
                 }
-                while (timeslicedConstructor.MoveNext())
+
+                // Restore main sketch's camera state after SaveSelected snapshot is created
+                if (selectedOnly && SavedThumbnailStateForRestore.HasValue)
                 {
-                    yield return timeslicedConstructor.Current;
+                    SketchControlsScript.m_Instance.GetSaveIconTool().LastSaveCameraRigState =
+                        SavedThumbnailStateForRestore.Value;
+                    SavedThumbnailStateForRestore = null;
                 }
-            }
 
-            // Restore main sketch's camera state after SaveSelected snapshot is created
-            if (selectedOnly && SavedThumbnailStateForRestore.HasValue)
-            {
-                SketchControlsScript.m_Instance.GetSaveIconTool().LastSaveCameraRigState =
-                    SavedThumbnailStateForRestore.Value;
-                SavedThumbnailStateForRestore = null;
-            }
-
-            // Don't update main sketch's thumbnail metadata when saving selected strokes
-            if (!selectedOnly)
-            {
-                LastThumbnail_SS = snapshot.LastThumbnail_SS;
-            }
-            App.Instance.SetDesiredState(App.AppState.Standard);
-            m_LastWriteSnapshotError = null;
-
-            // Make sure the cancel task is done before we start writing the snapshot.
-            while (!cancelTask.IsCompleted)
-            {
-                yield return null;
-            }
-
-            string error = null;
-            var writeFuture = new Future<string>(
-                () => snapshot.WriteSnapshotToFile(fileInfo.FullPath),
-                null, true);
-            while (!writeFuture.TryGetResult(out error))
-            {
-                yield return null;
-            }
-
-            m_LastWriteSnapshotError = error;
-            m_LastThumbnailBytes = snapshot.Thumbnail;
-            SketchMemoryScript.m_Instance.SetLastOperationStackCount();
-            SketchMemoryScript.m_Instance.InitialSketchTransform = App.Scene.Pose;
-            m_SaveCoroutine = null;
-            if (error == null)
-            {
-                if (newFile)
+                // Don't update main sketch's thumbnail metadata when saving selected strokes
+                if (!selectedOnly)
                 {
-                    SketchCatalog.m_Instance.NotifyUserFileCreated(m_LastSceneFile.FullPath);
+                    LastThumbnail_SS = snapshot.LastThumbnail_SS;
                 }
-                else
+                App.Instance.SetDesiredState(App.AppState.Standard);
+                m_LastWriteSnapshotError = null;
+
+                // Make sure the cancel task is done before we start writing the snapshot.
+                while (!cancelTask.IsCompleted)
                 {
-                    SketchCatalog.m_Instance.NotifyUserFileChanged(m_LastSceneFile.FullPath);
+                    yield return null;
+                }
+
+                string error = null;
+                var writeFuture = new Future<string>(
+                    () => snapshot.WriteSnapshotToFile(fileInfo.FullPath),
+                    null, true);
+                while (!writeFuture.TryGetResult(out error))
+                {
+                    yield return null;
+                }
+
+                m_LastWriteSnapshotError = error;
+                m_LastThumbnailBytes = snapshot.Thumbnail;
+                SketchMemoryScript.m_Instance.SetLastOperationStackCount();
+                SketchMemoryScript.m_Instance.InitialSketchTransform = App.Scene.Pose;
+                m_SaveCoroutine = null;
+                if (error == null)
+                {
+                    if (newFile)
+                    {
+                        SketchCatalog.m_Instance.NotifyUserFileCreated(m_LastSceneFile.FullPath);
+                    }
+                    else
+                    {
+                        SketchCatalog.m_Instance.NotifyUserFileChanged(m_LastSceneFile.FullPath);
+                    }
+                }
+                if (bNotify && !m_SuppressNotify)
+                {
+                    NotifySaveFinished(m_LastSceneFile, error, newFile);
+                }
+                App.DriveSync.SyncLocalFilesAsync().AsAsyncVoid();
+                m_SuppressNotify = false;
+            }
+            finally
+            {
+                // Always release the save lock and leave Saving state, even if an
+                // exception killed the coroutine (e.g. icon capture NRE). Without
+                // this, IsSavingAllowed stays false and controllers can remain frozen.
+                m_SaveCoroutine = null;
+                if (App.CurrentState == App.AppState.Saving)
+                {
+                    Debug.LogError("[SaveLoadScript] Save coroutine aborted; released save lock and restored Standard state.");
+                    App.Instance.SetDesiredState(App.AppState.Standard);
                 }
             }
-            if (bNotify && !m_SuppressNotify)
-            {
-                NotifySaveFinished(m_LastSceneFile, error, newFile);
-            }
-            App.DriveSync.SyncLocalFilesAsync().AsAsyncVoid();
-            m_SuppressNotify = false;
         }
 
         /// If success, error should be null

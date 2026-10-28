@@ -470,6 +470,7 @@ namespace TiltBrush
                 "[SelectionWidget.CachePlaneLockGrab] GRAB selection-box only" +
                 " button=" + mirror.PlaneLockActive +
                 " tunnel=" + mirror.TunnelLockActive +
+                " lateral=" + mirror.LateralLockActive +
                 " liveMirror=" + live +
                 " bothSides=" + bothSides +
                 " scaleActive=" + PlaneLockScaleActive() +
@@ -494,7 +495,7 @@ namespace TiltBrush
                 return false;
             }
             SymmetryWidget mirror = PointerManager.m_Instance.SymmetryWidget;
-            return mirror.TunnelLockActive || mirror.PlaneLockActive;
+            return mirror.TunnelLockActive || mirror.PlaneLockActive || mirror.LateralLockActive;
         }
 
         bool PlaneLockScaleActive()
@@ -541,6 +542,7 @@ namespace TiltBrush
                     : null;
                 bool tunnel = mirror != null && mirror.TunnelLockActive;
                 bool plane = mirror != null && mirror.PlaneLockActive;
+                bool lateral = mirror != null && mirror.LateralLockActive;
                 Quaternion sceneRot = App.Scene.Pose.rotation;
                 Vector3 sceneX = sceneRot * Vector3.right;
                 Vector3 sceneY = sceneRot * Vector3.up;
@@ -565,18 +567,20 @@ namespace TiltBrush
                 {
                     slide = Vector3.zero;
                 }
-                else if (tunnel && !plane)
-                {
-                    slide = sceneZ * Vector3.Dot(handDelta, sceneZ);
-                }
-                else if (plane && !tunnel)
-                {
-                    slide = sceneY * Vector3.Dot(handDelta, sceneY);
-                }
                 else
                 {
-                    slide = sceneY * Vector3.Dot(handDelta, sceneY)
-                        + sceneZ * Vector3.Dot(handDelta, sceneZ);
+                    if (lateral)
+                    {
+                        slide += sceneX * Vector3.Dot(handDelta, sceneX);
+                    }
+                    if (plane)
+                    {
+                        slide += sceneY * Vector3.Dot(handDelta, sceneY);
+                    }
+                    if (tunnel)
+                    {
+                        slide += sceneZ * Vector3.Dot(handDelta, sceneZ);
+                    }
                 }
                 outXf.translation = m_PlaneLockGrabStartPos_GS + slide;
                 outXf.rotation = m_PlaneLockGrabStartRot_GS;
@@ -591,6 +595,7 @@ namespace TiltBrush
                         " axis=" + axis +
                         " tunnel=" + tunnel +
                         " plane=" + plane +
+                        " lateral=" + lateral +
                         " slide=" + slide.magnitude.ToString("F3") +
                         " start=" + m_PlaneLockGrabStartPos_GS +
                         " out=" + outXf.translation);

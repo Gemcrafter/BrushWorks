@@ -24,10 +24,18 @@ namespace TiltBrush
 
         private float[] m_GifAngles;
 
-        void Start()
+        void Awake()
         {
             //calculate angles for gif icon
-            m_GifAngles = new float[SaveLoadScript.m_Instance.m_SaveGifTextureCount];
+            // Awake runs immediately on the first SetActive(true). Start is deferred
+            // until the next Update and is skipped when ProgrammaticCaptureSaveIcon
+            // deactivates the rig again in the same frame.
+            int count = 5;
+            if (SaveLoadScript.m_Instance != null)
+            {
+                count = SaveLoadScript.m_Instance.m_SaveGifTextureCount;
+            }
+            m_GifAngles = new float[Mathf.Max(1, count)];
             float fAutoGifCaptureHalfAngle = m_GifTotalAngle * 0.5f;
             for (int i = 0; i < m_GifAngles.Length; ++i)
             {
@@ -61,4 +69,5 @@ namespace TiltBrush
             transform.rotation = qRotate * baseRot;
         }
     }
+
 } // namespace TiltBrush

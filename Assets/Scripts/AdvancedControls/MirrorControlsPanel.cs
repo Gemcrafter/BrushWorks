@@ -1412,6 +1412,14 @@ namespace TiltBrush
                         active ? MirrorControlsMoveToMirrorToTint : MirrorControlsInactiveTint);
                     continue;
                 }
+                if (name == "LateralLock")
+                {
+                    active = widget != null && widget.LateralLockActive;
+                    ForceMirrorControlsPanelButtonTint(
+                        toggles[i],
+                        active ? MirrorControlsMoveToMirrorToTint : MirrorControlsInactiveTint);
+                    continue;
+                }
 
                 // --- Existing mirror controls ---
                 if (name == "ClearSavedMirror")
@@ -2438,6 +2446,18 @@ namespace TiltBrush
                 return;
             }
             widget.ToggleTunnelLock();
+            RefreshAllMirrorControlsTints();
+        }
+
+        public void ToggleLateralLock()
+        {
+            LogButtonPress("LateralLock", "ToggleLateralLock");
+            SymmetryWidget widget = FindSymmetryWidget();
+            if (widget == null)
+            {
+                return;
+            }
+            widget.ToggleLateralLock();
             RefreshAllMirrorControlsTints();
         }
 

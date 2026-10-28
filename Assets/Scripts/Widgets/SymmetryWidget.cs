@@ -127,7 +127,7 @@ namespace TiltBrush
         void SetArchitecturalTargetIndex(int index, string why)
         {
             SymmetryWidget live = LiveArchitectWidget();
-            int count = FindObjectsOfType<SymmetryWidget>(true).Length;
+            int count = FindObjectsByType<SymmetryWidget>(FindObjectsInactive.Include).Length;
             Debug.LogError(
                 "[SymmetryWidget.SetArchitecturalTargetIndex] why=" + why +
                 " old=" + m_ArchitecturalTargetIndex +
@@ -174,10 +174,12 @@ namespace TiltBrush
         [SerializeField]
         SelectionSlideDefault m_SelectionSlideDefault =
             SelectionSlideDefault.FrontBackOnly;
-        [Tooltip("Selection grab. On = up/down on the glass. Combines with Tunnel Lock. Both on = either axis. Both off = free.")]
+        [Tooltip("Selection grab. On = up/down on the glass. Combines with Tunnel Lock and Lateral Lock. Any combination restricts to those axes. None on = free.")]
         [SerializeField] bool m_PlaneLockActive;
-        [Tooltip("Selection grab. On = toward/away (front-back) on the glass. Combines with Plane Lock. Both on = either axis. Both off = free.")]
+        [Tooltip("Selection grab. On = toward/away (front-back) on the glass. Combines with Plane Lock and Lateral Lock. Any combination restricts to those axes. None on = free.")]
         [SerializeField] bool m_TunnelLockActive = true;
+        [Tooltip("Selection grab. On = left-right on the glass. Combines with Plane Lock and Tunnel Lock. Any combination restricts to those axes. None on = free.")]
+        [SerializeField] bool m_LateralLockActive;
         bool m_WasFlyToolLastTick;
 
 
@@ -2795,6 +2797,26 @@ namespace TiltBrush
             m_TunnelLockActive = on;
         }
 
+        public bool LateralLockActive
+        {
+            get
+            {
+                return m_LateralLockActive;
+            }
+        }
+
+        public void ToggleLateralLock()
+        {
+            m_LateralLockActive = !m_LateralLockActive;
+            Debug.LogError(
+                "[SymmetryWidget.ToggleLateralLock] LateralLock=" + m_LateralLockActive);
+        }
+
+        public void SetLateralLock(bool on)
+        {
+            m_LateralLockActive = on;
+        }
+
         public void ApplySelectionSlideDefault()
         {
             switch (m_SelectionSlideDefault)
@@ -2802,25 +2824,30 @@ namespace TiltBrush
                 case SelectionSlideDefault.FrontBackOnly:
                     m_TunnelLockActive = true;
                     m_PlaneLockActive = false;
+                    m_LateralLockActive = false;
                     break;
                 case SelectionSlideDefault.UpDownOnly:
                     m_TunnelLockActive = false;
                     m_PlaneLockActive = true;
+                    m_LateralLockActive = false;
                     break;
                 case SelectionSlideDefault.AllowEither:
                     m_TunnelLockActive = true;
                     m_PlaneLockActive = true;
+                    m_LateralLockActive = false;
                     break;
                 default:
                     m_TunnelLockActive = false;
                     m_PlaneLockActive = false;
+                    m_LateralLockActive = false;
                     break;
             }
             Debug.LogError(
                 "[SymmetryWidget.ApplySelectionSlideDefault] default=" +
                 m_SelectionSlideDefault +
                 " tunnel=" + m_TunnelLockActive +
-                " plane=" + m_PlaneLockActive);
+                " plane=" + m_PlaneLockActive +
+                " lateral=" + m_LateralLockActive);
         }
 
         public bool IsLiveSinglePlaneActive()
