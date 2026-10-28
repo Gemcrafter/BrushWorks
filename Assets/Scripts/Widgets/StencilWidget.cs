@@ -284,10 +284,123 @@ namespace TiltBrush
             }
         }
 
+        Vector3 m_GuideLockStartPos_GS;
+        Vector3 m_GuideLockHandPos_GS;
+        Quaternion m_GuideLockStartRot_GS;
+        bool m_GuideLockCached;
+
+        bool GuideSlideLockActive()
+        {
+            if (Type != StencilType.Plane)
+            {
+                return false;
+            }
+            if (PointerManager.m_Instance == null
+                || PointerManager.m_Instance.SymmetryWidget == null)
+            {
+                return false;
+            }
+            SymmetryWidget mirror = PointerManager.m_Instance.SymmetryWidget;
+            return mirror.TunnelLockActive || mirror.PlaneLockActive || mirror.LateralLockActive;
+        }
+
+        void CacheGuideSlideLock()
+        {
+            m_GuideLockStartPos_GS = transform.position;
+            m_GuideLockStartRot_GS = transform.rotation;
+            m_GuideLockHandPos_GS = m_GuideLockStartPos_GS;
+            if (InputManager.m_Instance != null)
+            {
+                int hand = (int)m_InteractingController;
+                if (hand >= 0 && hand < InputManager.Controllers.Length
+                    && InputManager.Controllers[hand] != null
+                    && InputManager.Controllers[hand].Transform != null)
+                {
+                    m_GuideLockHandPos_GS = InputManager.Controllers[hand].Transform.position;
+                }
+            }
+            m_GuideLockCached = true;
+        }
+
+        override protected TrTransform GetDesiredTransform(TrTransform xf_GS)
+        {
+            TrTransform outXf = base.GetDesiredTransform(xf_GS);
+            if (!GuideSlideLockActive())
+            {
+                m_GuideLockCached = false;
+                return outXf;
+            }
+            if (!m_GuideLockCached)
+            {
+                CacheGuideSlideLock();
+            }
+            Vector3 handNow = m_GuideLockHandPos_GS;
+            if (InputManager.m_Instance != null)
+            {
+                int hand = (int)m_InteractingController;
+                if (hand >= 0 && hand < InputManager.Controllers.Length
+                    && InputManager.Controllers[hand] != null
+                    && InputManager.Controllers[hand].Transform != null)
+                {
+                    handNow = InputManager.Controllers[hand].Transform.position;
+                }
+            }
+            Vector3 handDelta = handNow - m_GuideLockHandPos_GS;
+            SymmetryWidget mirror = PointerManager.m_Instance.SymmetryWidget;
+            bool tunnel = mirror.TunnelLockActive;
+            bool plane = mirror.PlaneLockActive;
+            bool lateral = mirror.LateralLockActive;
+            Quaternion sceneRot = App.Scene.Pose.rotation;
+            Vector3 sceneX = sceneRot * Vector3.right;
+            Vector3 sceneY = sceneRot * Vector3.up;
+            Vector3 sceneZ = sceneRot * Vector3.forward;
+            Vector3 slide = Vector3.zero;
+            SymmetryWidget.MirrorSlideDefault axis = mirror.CurrentMirrorSlideDefault;
+            if (axis == SymmetryWidget.MirrorSlideDefault.X)
+            {
+                slide = sceneX * Vector3.Dot(handDelta, sceneX);
+            }
+            else if (axis == SymmetryWidget.MirrorSlideDefault.Y)
+            {
+                slide = sceneY * Vector3.Dot(handDelta, sceneY);
+            }
+            else if (axis == SymmetryWidget.MirrorSlideDefault.Z)
+            {
+                slide = sceneZ * Vector3.Dot(handDelta, sceneZ);
+            }
+            else if (axis == SymmetryWidget.MirrorSlideDefault.All)
+            {
+                slide = Vector3.zero;
+            }
+            else
+            {
+                if (lateral)
+                {
+                    slide += sceneX * Vector3.Dot(handDelta, sceneX);
+                }
+                if (plane)
+                {
+                    slide += sceneY * Vector3.Dot(handDelta, sceneY);
+                }
+                if (tunnel)
+                {
+                    slide += sceneZ * Vector3.Dot(handDelta, sceneZ);
+                }
+            }
+            outXf.translation = m_GuideLockStartPos_GS + slide;
+            outXf.rotation = m_GuideLockStartRot_GS;
+            return outXf;
+        }
+
         override protected void OnUserBeginInteracting()
         {
             base.OnUserBeginInteracting();
             m_LockedManipulationAxis = null;
+            m_GuideLockCached = false;
+            if (GuideSlideLockActive())
+            {
+                CacheGuideSlideLock();
+            }
             if (m_TintableMeshes != null)
             {
                 Shader.SetGlobalFloat("_UserIsInteractingWithStencilWidget", 1.0f);
